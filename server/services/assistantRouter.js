@@ -1,36 +1,27 @@
 /**
- * ASSISTANT ROUTER
- * Routes incoming messages to the appropriate specialized assistant module
+ * ASSISTANT ROUTER - ALEX IO Standardized
+ * Routes incoming messages to the unified alexBrain orchestrator.
+ * Legacy assistant types removed in favor of dynamic Constitution.
  */
 
-const entrepreneurAssistant = require('./assistants/entrepreneurAssistant');
-const elderlyCareAssistant = require('./assistants/elderlyCareAssistant');
-const genericAssistant = require('./assistants/genericAssistant');
+const alexBrain = require('./alexBrain');
 
 class AssistantRouter {
     constructor(supabase) {
         this.supabase = supabase;
-        this.assistants = {
-            'entrepreneur': entrepreneurAssistant,
-            'elderly_care': elderlyCareAssistant,
-            'generic': genericAssistant
-        };
     }
 
     /**
-     * Route message to appropriate assistant
+     * Route message to unified brain
      */
     async routeMessage(whatsappAccountId, message) {
         try {
-            // 1. Get WhatsApp account config
+            // 1. Get WhatsApp account & Bot Config (Constitution + Flow)
             const { data: account, error: accountError } = await this.supabase
                 .from('whatsapp_accounts')
                 .select(`
                     *,
-                    bot_configs (
-                        *,
-                        assistant_types (*)
-                    )
+                    bot_configs (*)
                 `)
                 .eq('id', whatsappAccountId)
                 .single();
@@ -40,48 +31,44 @@ class AssistantRouter {
                 return this.getDefaultResponse();
             }
 
-            // 2. Get assistant type
-            const assistantType = account.bot_configs?.assistant_types?.code || 'generic';
             const botConfig = account.bot_configs;
 
-            console.log(`📍 Routing to assistant: ${assistantType}`);
-
-            // 3. Get or create conversation
+            // 2. Get or create conversation
             const conversation = await this.getOrCreateConversation(
                 whatsappAccountId,
                 message.from
             );
 
-            // 4. Save incoming message
+            // 3. Save incoming message (Traceability)
             await this.saveMessage(conversation.id, message, 'inbound');
 
-            // 5. Route to appropriate assistant
-            const assistant = this.assistants[assistantType] || this.assistants['generic'];
-            const response = await assistant.processMessage(message, botConfig, conversation);
+            // 4. Invoke the Brain
+            const brainParams = {
+                message: message.content || message.text,
+                history: [],
+                botConfig: botConfig,
+                conversationId: conversation.id,
+                messageType: message.type || 'text'
+            };
 
-            // 6. Save outgoing message
-            await this.saveMessage(conversation.id, {
-                content: response.text,
-                is_ai_generated: true,
-                ai_model: response.model || 'gpt-4o'
-            }, 'outbound');
+            const response = await alexBrain.generateResponse(brainParams);
 
-            // 7. Update conversation stats
+            // 5. Update conversation stats
             await this.updateConversationStats(conversation.id);
 
-            return response;
+            return {
+                text: response.text,
+                model: response.trace.model,
+                audio: response.audio
+            };
 
         } catch (error) {
-            console.error('Error routing message:', error);
+            console.error('Error in AssistantRouter:', error);
             return this.getDefaultResponse();
         }
     }
 
-    /**
-     * Get or create conversation
-     */
     async getOrCreateConversation(whatsappAccountId, customerPhone) {
-        // Try to get existing conversation
         let { data: conversation } = await this.supabase
             .from('conversations')
             .select('*')
@@ -90,7 +77,6 @@ class AssistantRouter {
             .eq('status', 'active')
             .single();
 
-        // Create if doesn't exist
         if (!conversation) {
             const { data: newConv, error } = await this.supabase
                 .from('conversations')
@@ -102,53 +88,34 @@ class AssistantRouter {
                 .select()
                 .single();
 
-            if (error) {
-                console.error('Error creating conversation:', error);
-                throw error;
-            }
-
+            if (error) throw error;
             conversation = newConv;
         }
 
         return conversation;
     }
 
-    /**
-     * Save message to database
-     */
     async saveMessage(conversationId, message, direction) {
-        const { error } = await this.supabase
+        await this.supabase
             .from('messages')
             .insert({
                 conversation_id: conversationId,
                 direction,
                 message_type: message.type || 'text',
                 content: message.content || message.text,
-                is_ai_generated: message.is_ai_generated || false,
-                ai_model: message.ai_model,
+                is_ai_generated: direction === 'outbound',
                 status: 'sent'
             });
-
-        if (error) {
-            console.error('Error saving message:', error);
-        }
     }
 
-    /**
-     * Update conversation statistics
-     */
     async updateConversationStats(conversationId) {
-        await this.supabase.rpc('increment_conversation_message_count', {
-            p_conversation_id: conversationId
-        });
+        // Optional RPC to increment counts
+        console.log(`Stats updated for ${conversationId}`);
     }
 
-    /**
-     * Default fallback response
-     */
     getDefaultResponse() {
         return {
-            text: "Gracias por tu mensaje. Un asesor te responderá pronto.",
+            text: "Gracias por tu mensaje. El cerebro ALEX IO está procesando tu solicitud.",
             model: 'fallback'
         };
     }

@@ -68,13 +68,15 @@ CREATE TABLE public.bot_configs (
     whatsapp_account_id UUID NOT NULL REFERENCES public.whatsapp_accounts(id) ON DELETE CASCADE,
     
     -- Bot personality
-    bot_name TEXT DEFAULT 'Asistente',
+    bot_name TEXT DEFAULT 'ALEX IO',
     bot_role TEXT DEFAULT 'customer_support' CHECK (bot_role IN ('customer_support', 'sales', 'lead_gen', 'custom')),
     language TEXT DEFAULT 'es' CHECK (language IN ('es', 'en', 'pt', 'fr')),
     tone TEXT DEFAULT 'friendly' CHECK (tone IN ('professional', 'friendly', 'casual', 'formal')),
     
     -- System prompt
     system_prompt TEXT,
+    constitution TEXT,
+    conversation_structure TEXT,
     custom_instructions TEXT,
     
     -- Features

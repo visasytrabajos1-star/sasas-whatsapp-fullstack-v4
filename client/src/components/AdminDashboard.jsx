@@ -11,8 +11,12 @@ import {
     Plus,
     Lock,
     Zap,
-    TrendingDown
+    TrendingDown,
+    Shield,
+    Layout,
+    MessageSquare
 } from 'lucide-react';
+import { supabase } from '../supabaseClient';
 import api from '../services/api'; // Use centralized API service
 
 const AdminDashboard = () => {
@@ -33,6 +37,12 @@ const AdminDashboard = () => {
                         label="Costos & IA"
                         isActive={activeTab === 'expenses'}
                         onClick={() => setActiveTab('expenses')}
+                    />
+                    <SidebarItem
+                        icon={<Shield />}
+                        label="Cerebro IO"
+                        isActive={activeTab === 'brain'}
+                        onClick={() => setActiveTab('brain')}
                     />
                     <SidebarItem
                         icon={<DollarSign />}
@@ -74,8 +84,8 @@ const AdminDashboard = () => {
                 </div>
 
                 {activeTab === 'expenses' && <ExpensesSection />}
+                {activeTab === 'brain' && <BrainSection />}
                 {activeTab === 'billing' && <BillingSection />}
-                {activeTab === 'promos' && <PromotionsSection />}
                 {activeTab === 'promos' && <PromotionsSection />}
                 {activeTab === 'users' && <UsersSection />}
                 {activeTab === 'settings' && <SettingsSection />}
@@ -500,6 +510,170 @@ const SettingsSection = () => {
                     Variable Actual: {config.force_provider.toUpperCase()}
                 </div>
             </div>
+        </motion.div>
+    );
+};
+
+const BrainSection = () => {
+    const [configs, setConfigs] = useState([]);
+    const [selectedConfig, setSelectedConfig] = useState(null);
+    const [logs, setLogs] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetchConfigs();
+    }, []);
+
+    const fetchConfigs = async () => {
+        if (!supabase) {
+            setLoading(false);
+            return;
+        }
+        const { data, error } = await supabase
+            .from('bot_configs')
+            .select('*, whatsapp_accounts(account_name, phone_number)');
+        if (!error) setConfigs(data);
+        setLoading(false);
+    };
+
+    const fetchLogs = async (configId) => {
+        if (!supabase) return;
+        const { data, error } = await supabase
+            .from('messages')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(20);
+        if (!error) setLogs(data);
+    };
+
+    const handleSave = async () => {
+        if (!selectedConfig || !supabase) return;
+        const { error } = await supabase
+            .from('bot_configs')
+            .update({
+                constitution: selectedConfig.constitution,
+                conversation_structure: selectedConfig.conversation_structure,
+                system_prompt: selectedConfig.system_prompt
+            })
+            .eq('id', selectedConfig.id);
+
+        if (!error) alert('Configuración guardada en ALEX IO 🚀');
+        else alert('Error al guardar: ' + error.message);
+    };
+
+    if (loading) return <div className="text-slate-400">Iniciando Cerebro ALEX IO...</div>;
+
+    return (
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="h-full flex flex-col">
+            <h2 className="text-3xl font-bold mb-6 flex items-center gap-3">
+                <Shield className="text-blue-400" /> Configuración de Cerebro ALEX IO
+            </h2>
+
+            {!supabase ? (
+                <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-2xl text-center">
+                    <p className="text-red-400 font-bold mb-2">⚠️ Conexión de Base de Datos Desactivada</p>
+                    <p className="text-sm text-slate-400">Esta sección requiere una conexión activa con Supabase para editar las constituciones.</p>
+                </div>
+            ) : (
+                <div className="flex-1 flex gap-6 min-h-0">
+                    {/* Navigation Mini Sidebar */}
+                    <div className="w-1/4 bg-slate-800/50 rounded-2xl border border-slate-700 p-2 overflow-y-auto">
+                        <p className="text-[10px] font-bold text-slate-500 uppercase px-3 py-2 tracking-widest">Cuentas Disponibles</p>
+                        {configs.map(cfg => (
+                            <button
+                                key={cfg.id}
+                                onClick={() => { setSelectedConfig(cfg); fetchLogs(cfg.id); }}
+                                className={`w-full text-left p-3 rounded-xl transition-all mb-1 ${selectedConfig?.id === cfg.id ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-700'}`}
+                            >
+                                <div className="font-bold text-sm truncate">{cfg.whatsapp_accounts?.account_name || 'Sin Nombre'}</div>
+                                <div className="text-[10px] opacity-70">{cfg.whatsapp_accounts?.phone_number || 'Sin Teléfono'}</div>
+                            </button>
+                        ))}
+                        {configs.length === 0 && <p className="text-xs text-slate-600 p-4 italic">No hay configuraciones encontradas.</p>}
+                    </div>
+
+                    {/* Editor Area */}
+                    {selectedConfig ? (
+                        <div className="flex-1 flex flex-col gap-6 min-h-0 overflow-y-auto pr-2">
+                            <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="text-xl font-bold">{selectedConfig.whatsapp_accounts?.account_name}</h3>
+                                    <button onClick={handleSave} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-xl flex items-center gap-2 font-bold transition-all shadow-lg shadow-blue-900/40">
+                                        <Save size={18} /> Guardar Cerebro
+                                    </button>
+                                </div>
+
+                                <div className="space-y-6">
+                                    <div>
+                                        <label className="block text-xs font-bold text-blue-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                            <Shield size={14} /> Constitución (Leyes del Bot)
+                                        </label>
+                                        <textarea
+                                            value={selectedConfig.constitution || ''}
+                                            onChange={e => setSelectedConfig({ ...selectedConfig, constitution: e.target.value })}
+                                            className="w-full h-48 bg-slate-900 border border-slate-700 rounded-xl p-4 text-sm font-mono focus:ring-2 focus:ring-blue-500 outline-none"
+                                            placeholder="Ingresa la constitución de este bot..."
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-xs font-bold text-purple-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                                <Layout size={14} /> Estructura
+                                            </label>
+                                            <textarea
+                                                value={selectedConfig.conversation_structure || ''}
+                                                onChange={e => setSelectedConfig({ ...selectedConfig, conversation_structure: e.target.value })}
+                                                className="w-full h-32 bg-slate-900 border border-slate-700 rounded-xl p-4 text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+                                                placeholder="Flujo de ventas o soporte..."
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-emerald-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                                <MessageSquare size={14} /> Prompt Base
+                                            </label>
+                                            <textarea
+                                                value={selectedConfig.system_prompt || ''}
+                                                onChange={e => setSelectedConfig({ ...selectedConfig, system_prompt: e.target.value })}
+                                                className="w-full h-32 bg-slate-900 border border-slate-700 rounded-xl p-4 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                                                placeholder="Nombre, tono, personalidad..."
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Cognitive Trace (Mini) */}
+                            <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                                <h4 className="text-xs font-bold text-slate-500 uppercase mb-4 flex items-center gap-2">
+                                    <Activity size={14} /> Trazabilidad Cognitiva Reciente
+                                </h4>
+                                <div className="space-y-2">
+                                    {logs.map(log => (
+                                        <div key={log.id} className="p-3 bg-slate-900/50 border border-slate-700/50 rounded-lg text-xs flex justify-between gap-4">
+                                            <div className="flex-1">
+                                                <span className={`font-bold mr-2 ${log.direction === 'inbound' ? 'text-slate-500' : 'text-blue-400'}`}>
+                                                    {log.direction.toUpperCase()}
+                                                </span>
+                                                <span className="text-slate-300">{log.content?.substring(0, 120)}...</span>
+                                            </div>
+                                            <div className="text-right text-[10px] text-slate-600 font-mono">
+                                                {log.ai_model || 'human'} | {log.processing_time_ms || 0}ms
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {logs.length === 0 && <p className="text-center text-slate-600 text-xs py-4">Sin actividad reciente registrada.</p>}
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center text-slate-600 bg-slate-800/20 rounded-2xl border border-slate-700 border-dashed">
+                            <Shield size={48} className="mb-4 opacity-10" />
+                            <p className="text-sm">Selecciona una cuenta para configurar su cerebro cognitivo</p>
+                        </div>
+                    )}
+                </div>
+            )}
         </motion.div>
     );
 };
