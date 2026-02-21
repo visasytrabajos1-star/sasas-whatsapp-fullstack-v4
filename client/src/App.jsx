@@ -11,6 +11,7 @@ import AdminDashboard from './components/AdminDashboard';
 import OnboardingWizard from './components/Onboarding/OnboardingWizard';
 import PaymentSetup from './components/PaymentSetup';
 import SaasDashboard from './components/SaasDashboard';
+import SuperAdminDashboard from '../../SAAS_ALEX_IO/dashboard/SuperAdminDashboard';
 
 
 function App() {
@@ -97,7 +98,6 @@ function App() {
 
   const checkProfile = async (userId) => {
     try {
-      // Direct Supabase query (Faster & More Reliable)
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
@@ -105,7 +105,6 @@ function App() {
         .single();
 
       if (profile) {
-        // If they have a subscription, consider onboarding complete
         setOnboardingComplete(!!profile.subscription_tier);
       } else {
         setOnboardingComplete(false);
@@ -122,11 +121,6 @@ function App() {
     return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">Cargando...</div>;
   }
 
-  const getRedirectPath = () => {
-    if (!session) return "/login";
-    return "/dashboard";
-  };
-
   const ProtectedRoute = ({ children }) => {
     if (!session) return <Navigate to="/login" />;
     return children;
@@ -136,7 +130,7 @@ function App() {
     <Router>
       <div className="min-h-screen bg-black">
         <Routes>
-          <Route path="/login" element={!session ? <Login /> : <Navigate to={getRedirectPath()} />} />
+          <Route path="/login" element={!session ? <Login /> : <Navigate to="/dashboard" />} />
 
           <Route path="/dashboard" element={
             <ProtectedRoute>
@@ -144,20 +138,27 @@ function App() {
             </ProtectedRoute>
           } />
 
-          {/* Utility Routes */}
+          <Route path="/admin" element={
+            <ProtectedRoute>
+              <AdminDashboard session={session} />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/superadmin" element={
+            <ProtectedRoute>
+              <SuperAdminDashboard />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/saas" element={<SaasDashboard />} />
+          <Route path="/payment-setup" element={<ProtectedRoute><PaymentSetup /></ProtectedRoute>} />
           <Route path="/onboarding" element={
             <ProtectedRoute>
               <OnboardingWizard session={session} onComplete={() => { setOnboardingComplete(true); }} />
             </ProtectedRoute>
           } />
 
-          <Route path="/admin" element={<ProtectedRoute><AdminDashboard session={session} /></ProtectedRoute>} />
-          <Route path="/saas" element={<SaasDashboard />} />
-          <Route path="/payment-setup" element={<ProtectedRoute><PaymentSetup /></ProtectedRoute>} />
-
           <Route path="/" element={<LandingPage />} />
-
-          {/* Catch-all Redirect */}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </div>
