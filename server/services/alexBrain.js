@@ -62,33 +62,51 @@ class AlexBrain {
         // Merge Contexts
         const fullSystemPrompt = this._buildSystemPrompt(botConfig);
 
-        // --- FALLBACK CHAIN ---
+        // --- FALLBACK CHAIN (REORDERED: ChatGPT Priority) ---
 
-        // 1. GEMINI FLASH 1.5 (Primary)
-        try {
-            const geminiResult = await this._tryGemini(message, history, fullSystemPrompt);
-            if (geminiResult) {
-                responseText = geminiResult.text;
-                usedModel = "gemini-1.5-flash";
-                tier = "FREE";
-            }
-        } catch (err) {
-            console.warn("⚠️ AlexBrain: Gemini Primary Failed. Retrying...");
-            retryCount++;
-            // 2. RETRY (1 time)
+        // 1. OPENAI GPT-4O-MINI (Primary)
+        if (this.openaiKey) {
             try {
-                const geminiRetry = await this._tryGemini(message, history, fullSystemPrompt);
-                if (geminiRetry) {
-                    responseText = geminiRetry.text;
-                    usedModel = "gemini-1.5-flash";
-                    tier = "FREE";
+                const openaiResult = await this._tryOpenAI(message, history, fullSystemPrompt);
+                if (openaiResult) {
+                    responseText = openaiResult.text;
+                    usedModel = "openai-mini";
+                    tier = "PAID";
+                    tokensUsed = openaiResult.tokens;
                 }
-            } catch (retryErr) {
-                console.warn("⚠️ AlexBrain: Gemini Retry Failed.");
+            } catch (err) {
+                console.warn("⚠️ AlexBrain: OpenAI Primary Failed. Falling back to Gemini...");
+                retryCount++;
             }
         }
 
-        // 3. DEEPSEEK (Secondary)
+        // 2. GEMINI FLASH 1.5 (Secondary)
+        if (!responseText) {
+            try {
+                const geminiResult = await this._tryGemini(message, history, fullSystemPrompt);
+                if (geminiResult) {
+                    responseText = geminiResult.text;
+                    usedModel = "gemini-1.5-flash";
+                    tier = "FREE";
+                }
+            } catch (err) {
+                console.warn("⚠️ AlexBrain: Gemini Secondary Failed. Retrying...");
+                retryCount++;
+                // RETRY (1 time)
+                try {
+                    const geminiRetry = await this._tryGemini(message, history, fullSystemPrompt);
+                    if (geminiRetry) {
+                        responseText = geminiRetry.text;
+                        usedModel = "gemini-1.5-flash";
+                        tier = "FREE";
+                    }
+                } catch (retryErr) {
+                    console.warn("⚠️ AlexBrain: Gemini Retry Failed.");
+                }
+            }
+        }
+
+        // 3. DEEPSEEK (Tertiary)
         if (!responseText && process.env.DEEPSEEK_API_KEY) {
             fallbackUsed = true;
             try {
@@ -107,29 +125,13 @@ class AlexBrain {
             }
         }
 
-        // 4. ALEX-BRAIN (Internal/Minimal)
+        // 4. ALEX-BRAIN (Internal/Minimal Fallback)
         if (!responseText) {
             fallbackUsed = true;
             console.info("ℹ️ AlexBrain: Using local fallback logic.");
             responseText = this._generateLocalResponse(message);
             usedModel = "alex-brain";
             tier = "PRO";
-        }
-
-        // 5. OPENAI GPT-4O-MINI (Absolute final guarantee)
-        if ((!responseText || responseText.includes("mantenimiento")) && this.openaiKey) {
-            fallbackUsed = true;
-            try {
-                const openaiResult = await this._tryOpenAI(message, history, fullSystemPrompt);
-                if (openaiResult) {
-                    responseText = openaiResult.text;
-                    usedModel = "openai-mini";
-                    tier = "PAID";
-                    tokensUsed = openaiResult.tokens;
-                }
-            } catch (err) {
-                console.error("❌ AlexBrain: OpenAI Final Fallback Failed!", err.message);
-            }
         }
 
         // Final Safeguard (Law of Guaranteed Response)
