@@ -80,6 +80,12 @@ async function handleCloudMessage(message) {
 
     const result = await alexBrain.generateResponse(brainParams);
 
+    // --- SAFETY CHECK ---
+    if (!result || !result.text || result.text.trim() === "") {
+        console.error("❌ AI Brain returned empty response.");
+        return; // Don't send empty message to avoid Baileys crash
+    }
+
     try {
         const axios = require('axios');
         const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;

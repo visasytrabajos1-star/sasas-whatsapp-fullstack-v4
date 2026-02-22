@@ -185,7 +185,9 @@ class AlexBrain {
 
     async _tryGemini(message, history, systemPrompt) {
         if (!this.geminiKey) return null;
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${this.geminiKey}`;
+
+        // Usar API oficial v1 en lugar de v1beta para mayor estabilidad
+        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${this.geminiKey}`;
 
         const contents = [];
         history.slice(-10).forEach(h => {
@@ -195,56 +197,59 @@ class AlexBrain {
 
         const payload = {
             contents,
-            system_instruction: { parts: [{ text: systemPrompt }] },
+            systemInstruction: { parts: [{ text: systemPrompt }] }, // Cambiado a camelCase
             generationConfig: { temperature: 0.7, maxOutputTokens: 800 }
         };
 
-        const res = await axios.post(url, payload, { timeout: 10000 });
-        if (res.data.candidates?.[0]?.content) {
-            return { text: res.data.candidates[0].content.parts[0].text };
+        try {
+            const res = await axios.post(url, payload, { timeout: 15000 }); // Aumentado timeout
+            if (res.data.candidates?.[0]?.content) {
+                return { text: res.data.candidates[0].content.parts[0].text };
+            }
+        } catch (error) {
+            console.error("❌ Gemini API Error Details:", error.response?.data || error.message);
+            throw error; // Rethrow to trigger the fallback chain
         }
         return null;
     }
-
-    async _tryOpenAI(message, history, systemPrompt) {
-        const res = await axios.post('https://api.openai.com/v1/chat/completions', {
-            model: "gpt-4o-mini",
-            messages: [
-                { role: "system", content: systemPrompt },
-                ...history.slice(-8).map(h => ({ role: h.role === 'user' ? 'user' : 'assistant', content: h.content || h.text })),
-                { role: "user", content: message }
-            ]
-        }, { headers: { 'Authorization': `Bearer ${this.openaiKey}` }, timeout: 15000 });
+    const res = await axios.post('https://api.openai.com/v1/chat/completions', {
+        model: "gpt-4o-mini",
+        messages: [
+            { role: "system", content: systemPrompt },
+            ...history.slice(-8).map(h => ({ role: h.role === 'user' ? 'user' : 'assistant', content: h.content || h.text })),
+            { role: "user", content: message }
+        ]
+    }, { headers: { 'Authorization': `Bearer ${this.openaiKey}` }, timeout: 15000 });
 
         return {
-            text: res.data.choices[0].message.content,
-            tokens: res.data.usage?.total_tokens || 0
-        };
+    text: res.data.choices[0].message.content,
+    tokens: res.data.usage?.total_tokens || 0
+};
     }
 
-    _generateLocalResponse(message) {
-        // Minimal logic for technical/fallback scenarios
-        if (message.toLowerCase().includes("hola")) return "Hola, soy Alex de Alex IO. ¿Cómo puedo ayudarte hoy?";
-        return "Entiendo. Estoy procesando tu consulta con mis módulos de respaldo.";
-    }
+_generateLocalResponse(message) {
+    // Minimal logic for technical/fallback scenarios
+    if (message.toLowerCase().includes("hola")) return "Hola, soy Alex de Alex IO. ¿Cómo puedo ayudarte hoy?";
+    return "Entiendo. Estoy procesando tu consulta con mis módulos de respaldo.";
+}
 
     async _logToDatabase(conversationId, text, trace, messageType = 'text') {
-        try {
-            await supabase.from('messages').insert({
-                conversation_id: conversationId,
-                direction: 'outbound',
-                content: text,
-                message_type: messageType,
-                is_ai_generated: true,
-                ai_model: trace.model,
-                ai_tokens_used: trace.tokens,
-                processing_time_ms: trace.responseTime,
-                status: 'sent'
-            });
-        } catch (err) {
-            console.error("❌ Failed to log AI message to DB:", err.message);
-        }
+    try {
+        await supabase.from('messages').insert({
+            conversation_id: conversationId,
+            direction: 'outbound',
+            content: text,
+            message_type: messageType,
+            is_ai_generated: true,
+            ai_model: trace.model,
+            ai_tokens_used: trace.tokens,
+            processing_time_ms: trace.responseTime,
+            status: 'sent'
+        });
+    } catch (err) {
+        console.error("❌ Failed to log AI message to DB:", err.message);
     }
+}
 }
 
 module.exports = new AlexBrain();
