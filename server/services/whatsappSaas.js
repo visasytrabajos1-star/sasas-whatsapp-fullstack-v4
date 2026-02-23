@@ -145,13 +145,22 @@ async function connectToWhatsApp(instanceId, config, res = null) {
 
     // If Cloud Provider, just update status and finish
     if (config.provider && config.provider !== 'baileys') {
-        await updateSessionStatus(instanceId, 'online', {
+        const payload = {
             companyName: config.companyName,
             provider: config.provider,
-            tenantId: config.tenantId
-        });
+            tenantId: config.tenantId,
+            qr_code: null
+        };
+        await updateSessionStatus(instanceId, 'configured_cloud', payload);
         if (res && !res.headersSent) {
-            res.json({ success: true, message: 'Cloud Instance Configured', instance_id: instanceId, status: 'online' });
+            res.json({
+                success: true,
+                instance_id: instanceId,
+                provider: config.provider,
+                message: config.provider === 'meta'
+                    ? 'Bot configurado para Meta Cloud API. Configura webhook y token en backend.'
+                    : 'Bot configurado para 360Dialog. Configura webhook y credenciales en backend.'
+            });
         }
         return;
     }
@@ -237,30 +246,79 @@ async function connectToWhatsApp(instanceId, config, res = null) {
 
 // --- ENDPOINTS ---
 router.post('/connect', async (req, res) => {
-    const { companyName, customPrompt, provider, tenantId } = req.body || {};
+    const { companyName, customPrompt, provider = 'baileys', tenantId, metaApiUrl, metaPhoneNumberId, metaAccessToken, dialogApiKey } = req.body || {};
     const cleanName = String(companyName || '').trim();
-    if (!cleanName) return res.status(400).json({ error: 'companyName is required' });
+
+    if (!cleanName) {
+        return res.status(400).json({ error: 'companyName is required' });
+    }
 
     const instanceId = `alex_${Date.now()}`;
-    // Prioritize authenticated tenant ID
     const effectiveTenantId = req.tenant?.id || tenantId || req.headers['x-tenant-id'];
-    const config = { companyName: cleanName, customPrompt, provider: provider || 'baileys', tenantId: effectiveTenantId };
+    const config = {
+        companyName: cleanName,
+        customPrompt,
+        provider,
+        tenantId: effectiveTenantId,
+        metaApiUrl,
+        metaPhoneNumberId,
+        metaAccessToken,
+        dialogApiKey
+    };
 
     try {
         await connectToWhatsApp(instanceId, config, res);
+
+        // Implementation of 90s timeout as requested for QR flow
+        if (provider === 'baileys') {
+            const timeoutHandle = setTimeout(async () => {
+                if (!res.headersSent) {
+                    await updateSessionStatus(instanceId, 'timeout_waiting_qr', {
+                        companyName: cleanName,
+                        provider,
+                        tenantId: effectiveTenantId,
+                        qr_code: null
+                    });
+
+                    res.status(408).json({
+                        error: 'Timeout waiting for QR. Aún estamos conectando con WhatsApp, intenta nuevamente en unos segundos.',
+                        instance_id: instanceId
+                    });
+                }
+            }, 90000);
+
+            res.on('close', () => clearTimeout(timeoutHandle));
+            res.on('finish', () => clearTimeout(timeoutHandle));
+        }
     } catch (err) {
+        console.error(`❌ [${instanceId}] Connect failed:`, err.message);
+        await updateSessionStatus(instanceId, 'error_connecting', {
+            companyName: cleanName,
+            provider,
+            tenantId: effectiveTenantId,
+            qr_code: null
+        });
         res.status(500).json({ error: err.message });
     }
 });
 
 router.post('/config/:instanceId', async (req, res) => {
     const { instanceId } = req.params;
-    const config = req.body;
-    if (!config) return res.status(400).json({ error: 'Config is required' });
+    const current = clientConfigs.get(instanceId);
 
-    clientConfigs.set(instanceId, { ...clientConfigs.get(instanceId), ...config });
-    await updateSessionStatus(instanceId, 'online', config); // Keep online if updated
-    res.json({ success: true });
+    if (!current) return res.status(404).json({ error: 'Instance not found' });
+
+    const nextConfig = { ...current, ...req.body };
+    clientConfigs.set(instanceId, nextConfig);
+
+    await updateSessionStatus(instanceId, 'configured', {
+        companyName: nextConfig.companyName,
+        provider: nextConfig.provider,
+        tenantId: nextConfig.tenantId,
+        qr_code: null
+    });
+
+    return res.json({ success: true, instance_id: instanceId, config: nextConfig });
 });
 
 router.post('/disconnect', async (req, res) => {

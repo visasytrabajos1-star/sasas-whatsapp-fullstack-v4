@@ -1,13 +1,13 @@
 const normalize = (url) => (url || '').replace(/\/$/, '');
 
-const RENDER_BACKEND_HINT = process.env.REACT_APP_RENDER_BACKEND_URL || 'https://whatsapp-fullstack-gkm6.onrender.com';
-const DEFAULT_TIMEOUT_MS = Number(process.env.REACT_APP_API_TIMEOUT_MS || 45000);
-const FORCE_PRIMARY_BACKEND = process.env.REACT_APP_FORCE_PRIMARY_BACKEND !== 'false';
-const ALLOW_ORIGIN_FALLBACK = process.env.REACT_APP_ALLOW_ORIGIN_FALLBACK === 'true';
+const RENDER_BACKEND_HINT = import.meta.env.VITE_RENDER_BACKEND_URL || 'https://whatsapp-fullstack-gkm6.onrender.com';
+const DEFAULT_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS || 45000);
+const FORCE_PRIMARY_BACKEND = import.meta.env.VITE_FORCE_PRIMARY_BACKEND !== 'false';
+const ALLOW_ORIGIN_FALLBACK = import.meta.env.VITE_ALLOW_ORIGIN_FALLBACK === 'true';
 let lastResolvedApiBase = null;
 
 const getApiBases = () => {
-  const envBase = normalize(process.env.REACT_APP_API_URL);
+  const envBase = normalize(import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL);
   const primaryBase = envBase || RENDER_BACKEND_HINT;
 
   if (FORCE_PRIMARY_BACKEND) return [primaryBase];

@@ -40,7 +40,7 @@ services:
     envVars:
       - key: VITE_API_URL
         value: https://whatsapp-fullstack-gkm6.onrender.com
-      - key: REACT_APP_API_TIMEOUT_MS
+      - key: VITE_API_TIMEOUT_MS
         value: "20000"
-      - key: REACT_APP_RENDER_BACKEND_URL
+      - key: VITE_RENDER_BACKEND_URL
         value: https://whatsapp-fullstack-gkm6.onrender.com
