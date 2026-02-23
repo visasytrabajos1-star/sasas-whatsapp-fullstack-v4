@@ -11,6 +11,10 @@ services:
         value: production
       - key: PORT
         value: "3000"
+      - key: WHATSAPP_MAX_RECONNECT_ATTEMPTS
+        value: "8"
+      - key: WHATSAPP_SESSIONS_TABLE
+        value: "saas_instances"
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
@@ -19,6 +23,8 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
+      - key: WHATSAPP_WEBHOOK_VERIFY_TOKEN
+        value: alex_prod_safe_token_2026
 
   - type: static
     name: alex-io-client
@@ -28,4 +34,8 @@ services:
     publishDir: build
     envVars:
       - key: REACT_APP_API_URL
+        value: https://alex-io-server.onrender.com
+      - key: REACT_APP_API_TIMEOUT_MS
+        value: "20000"
+      - key: REACT_APP_RENDER_BACKEND_URL
         value: https://alex-io-server.onrender.com
