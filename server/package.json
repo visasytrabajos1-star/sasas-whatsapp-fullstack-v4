@@ -8,6 +8,7 @@
     "dev": "node index.js"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.21.0",
     "@supabase/supabase-js": "^2.39.0",
     "@whiskeysockets/baileys": "^6.11.0",
     "axios": "^1.6.5",

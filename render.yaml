@@ -36,7 +36,7 @@ services:
     region: oregon
     rootDir: client
     buildCommand: npm install && npm run build
-    publishDir: dist
+    publishDir: build
     envVars:
       - key: VITE_API_URL
         value: https://whatsapp-fullstack-gkm6.onrender.com
