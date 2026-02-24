@@ -47,4 +47,4 @@ services:
       - key: VITE_SUPABASE_URL
         value: https://ygsmooajrqldzdtcukfd.supabase.co
       - key: VITE_SUPABASE_ANON_KEY
-        sync: false
+        value: sb_publishable_X3xx0LH-LOLJf7q5M52yVQ_JUq3AzT8
