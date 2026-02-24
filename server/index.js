@@ -5,7 +5,7 @@ const pino = require('pino');
 
 // --- CONFIGURATION ---
 const app = express();
-app.set('trust proxy', true); // Explicitly trust Render's proxy
+app.set('trust proxy', 1); // Trust Render's load balancer (1 hop)
 const PORT = process.env.PORT || 3000;
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 logger.info('✅ Express trust proxy enabled');
