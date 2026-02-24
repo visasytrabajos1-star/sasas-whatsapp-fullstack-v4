@@ -1,0 +1,9 @@
+{
+    "name": "whatsapp-fullstack",
+    "version": "2.0.4.16",
+    "private": true,
+    "scripts": {
+        "start": "cd server && node index.js",
+        "build": "cd server && npm install && cd ../client && npm install && npm run build"
+    }
+}
