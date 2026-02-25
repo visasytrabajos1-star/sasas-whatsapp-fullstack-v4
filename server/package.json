@@ -10,7 +10,7 @@
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
     "@supabase/supabase-js": "^2.39.0",
-    "@whiskeysockets/baileys": "^6.11.0",
+    "@whiskeysockets/baileys": "latest",
     "axios": "^1.6.5",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",

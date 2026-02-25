@@ -1,4 +1,7 @@
-const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const baileys = require('@whiskeysockets/baileys');
+const { makeWASocket, useMultiFileAuthState, DisconnectReason } = baileys;
+const fetchLatestBaileysVersion = baileys.fetchLatestBaileysVersion || null;
+const Browsers = baileys.Browsers || null;
 const QRCode = require('qrcode');
 const fs = require('fs');
 const pino = require('pino');
@@ -141,11 +144,23 @@ async function connectToWhatsApp(instanceId, config, res = null) {
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
 
+    // Fetch latest WhatsApp Web version to avoid 405 errors
+    let version;
+    try {
+        const versionInfo = await fetchLatestBaileysVersion();
+        version = versionInfo.version;
+        console.log(`📡 [${instanceId}] Using WA Web version: ${version.join('.')}`);
+    } catch (e) {
+        console.warn(`⚠️ [${instanceId}] Could not fetch latest version, using default`);
+        version = undefined; // Let Baileys use its built-in default
+    }
+
     const sock = makeWASocket({
         auth: state,
+        version,
         printQRInTerminal: false,
         logger: pino({ level: 'fatal' }),
-        browser: ['Ubuntu', 'Chrome', '120.0.0'],
+        browser: Browsers ? Browsers.ubuntu('Chrome') : ['Ubuntu', 'Chrome', '22.0'],
         connectTimeoutMs: 60000,
         keepAliveIntervalMs: 10000
     });
