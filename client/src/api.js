@@ -1,4 +1,3 @@
-import { supabase } from './supabaseClient';
 const normalize = (url) => (url || '').replace(/\/$/, '');
 
 const RENDER_BACKEND_HINT = import.meta.env.VITE_RENDER_BACKEND_URL || 'https://whatsapp-fullstack-gkm6.onrender.com';
@@ -7,30 +6,17 @@ const FORCE_PRIMARY_BACKEND = import.meta.env.VITE_FORCE_PRIMARY_BACKEND !== 'fa
 const ALLOW_ORIGIN_FALLBACK = import.meta.env.VITE_ALLOW_ORIGIN_FALLBACK === 'true';
 let lastResolvedApiBase = null;
 
-const getFallbackBases = () => {
-  if (typeof window === 'undefined') return [RENDER_BACKEND_HINT];
-  const origin = normalize(window.location.origin);
-  const hostname = window.location.hostname;
-  const fallbacks = [RENDER_BACKEND_HINT];
-
-  // Auto-suffix support for Render/Vercel deployments
-  if (hostname.includes('-client.')) {
-    fallbacks.push(origin.replace('-client.', '-server.'));
-  }
-  if (hostname.endsWith('.onrender.com') && hostname !== 'whatsapp-fullstack-gkm6.onrender.com') {
-    fallbacks.push('https://whatsapp-fullstack-gkm6.onrender.com');
-  }
-
-  fallbacks.push(origin);
-  return fallbacks.filter(Boolean);
-};
-
 const getApiBases = () => {
-  const envBase = normalize(import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL);
-  const bases = envBase ? [envBase] : [];
+  const envBase = normalize(import.meta.env.VITE_API_URL);
+  const primaryBase = envBase || RENDER_BACKEND_HINT;
 
-  for (const fallback of getFallbackBases()) {
-    if (!bases.includes(fallback)) bases.push(fallback);
+  if (FORCE_PRIMARY_BACKEND) return [primaryBase];
+
+  const bases = [primaryBase];
+
+  if (ALLOW_ORIGIN_FALLBACK && typeof window !== 'undefined') {
+    const origin = normalize(window.location.origin);
+    if (origin && !bases.includes(origin)) bases.push(origin);
   }
 
   return bases;
@@ -44,49 +30,10 @@ const shouldTryNextBase = (response) => {
   return [404, 502, 503, 504].includes(response.status);
 };
 
-
-
 export const fetchWithApiFallback = async (path, options = {}) => {
   const { timeoutMs = DEFAULT_TIMEOUT_MS, ...fetchOptions } = options;
   const bases = getApiBases();
   const errors = [];
-
-  // Auto-inject JWT: first try Supabase session, then try cached backend token
-  let token = null;
-
-  // 1. Try Supabase session token
-  if (supabase) {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      token = session?.access_token || null;
-    } catch (_) { }
-  }
-
-  // 2. If no Supabase token, try a cached backend JWT or auto-login
-  if (!token) {
-    token = localStorage.getItem('alex_io_token');
-    if (!token) {
-      // Auto-login with admin identity to get a backend JWT
-      const demoEmail = localStorage.getItem('demo_email') || 'visasytrabajos@gmail.com';
-      try {
-        const loginRes = await fetch(`${getApiBases()[0]}/api/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: demoEmail })
-        });
-        if (loginRes.ok) {
-          const loginData = await loginRes.json();
-          token = loginData.token;
-          if (token) localStorage.setItem('alex_io_token', token);
-        }
-      } catch (_) { }
-    }
-  }
-
-  const headers = {
-    ...fetchOptions.headers,
-    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-  };
 
   for (const base of bases) {
     const url = `${base}${path}`;
@@ -94,7 +41,7 @@ export const fetchWithApiFallback = async (path, options = {}) => {
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      const response = await fetch(url, { ...fetchOptions, headers, signal: controller.signal });
+      const response = await fetch(url, { ...fetchOptions, signal: controller.signal });
       clearTimeout(timeout);
 
       if (!response.ok && shouldTryNextBase(response)) {

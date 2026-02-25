@@ -324,7 +324,7 @@ function Dashboard() {
       </main>
 
       <footer className="fixed bottom-2 right-3 text-[11px] text-slate-400 bg-slate-950/90 border border-slate-800 px-2 py-1 rounded">
-        v2.0.5 Sync | API activa: {apiDebugUrl}
+        API activa: {apiDebugUrl}
       </footer>
     </div>
   );
