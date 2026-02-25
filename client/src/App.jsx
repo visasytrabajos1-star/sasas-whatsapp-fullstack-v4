@@ -55,7 +55,14 @@ function App() {
       return;
     }
 
+    // SAFETY TIMEOUT: never hang on loading forever
+    const safetyTimer = setTimeout(() => {
+      console.warn('⏰ [ALEX IO] Safety timeout - forcing loading=false');
+      setLoading(false);
+    }, 3000);
+
     supabase.auth.getSession().then(({ data: { session: supabaseSession } }) => {
+      clearTimeout(safetyTimer);
       if (supabaseSession) {
         // Google OAuth session
         console.log("🔑 [ALEX IO] Supabase OAuth session active");
@@ -72,6 +79,7 @@ function App() {
       }
       setLoading(false);
     }).catch(err => {
+      clearTimeout(safetyTimer);
       console.error("❌ [ALEX IO] Auth Check Failure:", err);
       // On error, still try JWT fallback
       const jwtSession = buildJwtSession();
