@@ -81,6 +81,10 @@ function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
       if (newSession) {
+        // Save Supabase token for backend API calls
+        localStorage.setItem('alex_io_token', newSession.access_token);
+        localStorage.setItem('demo_email', newSession.user?.email || '');
+        localStorage.setItem('alex_io_role', newSession.user?.role || 'OWNER');
         setSession(newSession);
       }
       // Don't clear JWT session on Supabase state changes if no new session
