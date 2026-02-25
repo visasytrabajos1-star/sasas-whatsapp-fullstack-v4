@@ -18,6 +18,9 @@ global.responseCache = global.responseCache || new NodeCache({ stdTTL: 1800, che
 const genAI = GEMINI_KEY ? new GoogleGenerativeAI(GEMINI_KEY) : null;
 const openai = OPENAI_KEY ? new OpenAI({ apiKey: OPENAI_KEY }) : null;
 
+// Log available providers on startup
+console.log(`🧠 AI Providers: Gemini=${!!genAI} | DeepSeek=${!!DEEPSEEK_KEY} | Claude=${!!ANTHROPIC_KEY} | OpenAI=${!!openai}`);
+
 /**
  * Generates a response using the available AI providers (Gemini -> DeepSeek -> OpenAI -> Safeguard)
  * and optionally converts the result to speech if OpenAI is available.
@@ -34,19 +37,23 @@ async function generateResponse({ message, history = [], botConfig = {} }) {
     let responseText = '';
     let usedModel = '';
 
-    // 2. Primary: Gemini (Multimodal & Fast)
+    // 2. Primary: Gemini (Multimodal & Fast) — try multiple models
     if (genAI) {
-        try {
-            const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-            const chat = model.startChat({
-                history: history.slice(-6).map(h => ({ role: h.role === 'assistant' ? 'model' : 'user', parts: [{ text: h.content || h.text }] })),
-                generationConfig: { maxOutputTokens: 500, temperature: 0.7 }
-            });
-            const result = await chat.sendMessage([{ text: `${systemPrompt}\n\nUsuario: ${message}` }]);
-            responseText = result.response.text();
-            usedModel = 'gemini-1.5-flash';
-        } catch (err) {
-            console.warn('⚠️ Gemini error:', err.message);
+        const geminiModels = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-pro'];
+        for (const modelName of geminiModels) {
+            try {
+                const model = genAI.getGenerativeModel({ model: modelName });
+                const chat = model.startChat({
+                    history: history.slice(-6).map(h => ({ role: h.role === 'assistant' ? 'model' : 'user', parts: [{ text: h.content || h.text }] })),
+                    generationConfig: { maxOutputTokens: 500, temperature: 0.7 }
+                });
+                const result = await chat.sendMessage([{ text: `${systemPrompt}\n\nUsuario: ${message}` }]);
+                responseText = result.response.text();
+                usedModel = modelName;
+                break; // Success, stop trying models
+            } catch (err) {
+                console.warn(`⚠️ Gemini ${modelName} error:`, err.message);
+            }
         }
     }
 
