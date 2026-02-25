@@ -14,7 +14,7 @@ const sessionStatus = new Map();
 const reconnectAttempts = new Map();
 const sessionsDir = './sessions';
 const sessionsTable = process.env.WHATSAPP_SESSIONS_TABLE || 'whatsapp_sessions';
-const maxReconnectAttempts = Number(process.env.WHATSAPP_MAX_RECONNECT_ATTEMPTS || 100);
+const maxReconnectAttempts = Number(process.env.WHATSAPP_MAX_RECONNECT_ATTEMPTS || 5);
 
 if (!fs.existsSync(sessionsDir)) fs.mkdirSync(sessionsDir, { recursive: true });
 
@@ -188,14 +188,42 @@ async function connectToWhatsApp(instanceId, config, res = null) {
                 qr_code: null
             }).catch(() => null);
 
-            const shouldReconnect = closeCode !== DisconnectReason.loggedOut;
+            // Permanent errors that should NOT trigger reconnection
+            const FATAL_CODES = [401, 403, 405, 406, 409, 410, 440];
+            const isFatal = FATAL_CODES.includes(closeCode);
+            const isLoggedOut = closeCode === DisconnectReason.loggedOut;
+            const shouldReconnect = !isFatal && !isLoggedOut;
             const attempts = (reconnectAttempts.get(instanceId) || 0) + 1;
             reconnectAttempts.set(instanceId, attempts);
 
-            console.log(`⚠️ [${instanceId}] Connection closed (code: ${closeCode ?? 'unknown'}). Reconnect: ${shouldReconnect ? 'yes' : 'no'} (attempt ${attempts}/${maxReconnectAttempts})`);
+            console.log(`⚠️ [${instanceId}] Connection closed (code: ${closeCode ?? 'unknown'}). Fatal: ${isFatal}. Reconnect: ${shouldReconnect ? 'yes' : 'NO'} (attempt ${attempts}/${maxReconnectAttempts})`);
 
-            if (shouldReconnect && attempts <= maxReconnectAttempts) {
-                setTimeout(() => connectToWhatsApp(instanceId, config, res), 5000);
+            if (isFatal) {
+                console.error(`🛑 [${instanceId}] FATAL error ${closeCode} — stopping reconnection. Clearing auth state.`);
+                // Clear corrupted auth state so next connect gets a fresh QR
+                const sessionPath = `${sessionsDir}/${instanceId}`;
+                try { fs.rmSync(sessionPath, { recursive: true, force: true }); } catch (_) { }
+
+                updateSessionStatus(instanceId, `fatal_error_${closeCode}`, {
+                    companyName: config.companyName,
+                    qr_code: null,
+                    error: `WhatsApp rechazó la conexión (código ${closeCode}). Reintenta desde el dashboard.`
+                }).catch(() => null);
+
+                if (res && !res.headersSent) {
+                    res.status(503).json({
+                        error: `WhatsApp rechazó la conexión (código ${closeCode}). Esto suele indicar un problema temporal de WhatsApp Web. Reintenta en unos minutos.`,
+                        instance_id: instanceId,
+                        close_code: closeCode
+                    });
+                }
+
+                clearSessionRuntime(instanceId);
+            } else if (shouldReconnect && attempts <= maxReconnectAttempts) {
+                // Exponential backoff: 5s, 10s, 20s, 40s, 60s max
+                const delay = Math.min(5000 * Math.pow(2, attempts - 1), 60000);
+                console.log(`🔁 [${instanceId}] Reconnecting in ${delay / 1000}s...`);
+                setTimeout(() => connectToWhatsApp(instanceId, config, null), delay);
             } else {
                 updateSessionStatus(instanceId, 'failed_max_retries', {
                     companyName: config.companyName,
