@@ -73,32 +73,97 @@ global.responseCache = global.responseCache || new NodeCache({ stdTTL: 3600, che
 
 // --- AUTH ROUTES (Public) ---
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const { JWT_SECRET } = require('./middleware/auth');
+const { supabase, isSupabaseEnabled } = require('./services/supabaseClient');
 
-app.post('/api/auth/login', (req, res) => {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ error: 'Email es requerido' });
+const ADMIN_EMAILS = ['visasytrabajos@gmail.com', 'admin@demo.com'];
 
-    // Admin list - these get ENTERPRISE + SUPERADMIN access
-    const ADMIN_EMAILS = [
-        'visasytrabajos@gmail.com',
-        'admin@demo.com'
-    ];
-
-    const isAdmin = ADMIN_EMAILS.includes(email.toLowerCase().trim());
-
+const buildToken = (email, role) => {
+    const isAdmin = ADMIN_EMAILS.includes(email.toLowerCase().trim()) || role === 'SUPERADMIN';
     const tenantId = isAdmin
         ? 'tenant_superadmin'
         : `tenant_${Buffer.from(email).toString('base64').substring(0, 8)}`;
-
-    const token = jwt.sign({
+    return {
+        token: jwt.sign({
+            tenantId, email,
+            plan: isAdmin ? 'ENTERPRISE' : 'PRO',
+            role: isAdmin ? 'SUPERADMIN' : 'OWNER'
+        }, JWT_SECRET, { expiresIn: '7d' }),
         tenantId,
-        email,
-        plan: isAdmin ? 'ENTERPRISE' : 'PRO',
         role: isAdmin ? 'SUPERADMIN' : 'OWNER'
-    }, JWT_SECRET, { expiresIn: '7d' });
+    };
+};
 
-    res.json({ token, tenantId, role: isAdmin ? 'SUPERADMIN' : 'OWNER' });
+// POST /api/auth/register
+app.post('/api/auth/register', async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email y contraseña son requeridos' });
+    if (password.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+
+    try {
+        const passwordHash = await bcrypt.hash(password, 10);
+
+        if (isSupabaseEnabled) {
+            // Check if user already exists
+            const { data: existing } = await supabase
+                .from('app_users')
+                .select('id')
+                .eq('email', email.toLowerCase().trim())
+                .single();
+
+            if (existing) return res.status(409).json({ error: 'Ya existe una cuenta con ese email' });
+
+            const { error } = await supabase
+                .from('app_users')
+                .insert({ email: email.toLowerCase().trim(), password_hash: passwordHash, plan: 'PRO', role: 'OWNER' });
+
+            if (error) throw error;
+        }
+
+        const { token, tenantId, role } = buildToken(email);
+        res.json({ token, tenantId, role, message: '¡Cuenta creada exitosamente!' });
+    } catch (err) {
+        console.error('Register error:', err.message);
+        res.status(500).json({ error: 'Error al crear la cuenta: ' + err.message });
+    }
+});
+
+// POST /api/auth/login
+app.post('/api/auth/login', async (req, res) => {
+    const { email, password } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email es requerido' });
+
+    // Admin bypass (no password required for defined admins)
+    if (ADMIN_EMAILS.includes(email.toLowerCase().trim())) {
+        const { token, tenantId, role } = buildToken(email);
+        return res.json({ token, tenantId, role });
+    }
+
+    try {
+        if (isSupabaseEnabled && password) {
+            const { data: user } = await supabase
+                .from('app_users')
+                .select('password_hash, role, plan')
+                .eq('email', email.toLowerCase().trim())
+                .single();
+
+            if (!user) return res.status(401).json({ error: 'Email o contraseña incorrectos' });
+
+            const valid = await bcrypt.compare(password, user.password_hash);
+            if (!valid) return res.status(401).json({ error: 'Email o contraseña incorrectos' });
+
+            const { token, tenantId, role } = buildToken(email, user.role);
+            return res.json({ token, tenantId, role });
+        }
+
+        // Fallback: passwordless (for existing users or when Supabase not configured)
+        const { token, tenantId, role } = buildToken(email);
+        res.json({ token, tenantId, role });
+    } catch (err) {
+        console.error('Login error:', err.message);
+        res.status(500).json({ error: 'Error al iniciar sesión' });
+    }
 });
 
 // --- SERVE FRONTEND (Static files from client build) ---

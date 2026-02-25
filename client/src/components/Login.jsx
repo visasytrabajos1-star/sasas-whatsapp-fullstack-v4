@@ -24,7 +24,7 @@ export default function Login() {
         try {
             const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
-                options: { redirectTo: window.location.origin + '/dashboard' }
+                options: { redirectTo: window.location.origin + '/#/dashboard' }
             });
             if (error) throw error;
         } catch (error) {
@@ -40,35 +40,40 @@ export default function Login() {
         setLoading(true);
         setMessage('');
 
-        // SIEMPRE usar backend JWT login (más confiable que Supabase en frontend)
         const BACKEND = 'https://whatsapp-fullstack-gkm6.onrender.com';
+        const endpoint = isSignUp ? '/api/auth/register' : '/api/auth/login';
+
         try {
-            const res = await fetch(`${BACKEND}/api/auth/login`, {
+            const res = await fetch(`${BACKEND}${endpoint}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email })
+                body: JSON.stringify({ email, password })
             });
 
+            const data = await res.json();
+
             if (!res.ok) {
-                const errText = await res.text();
-                let errMsg = `Error del servidor (${res.status})`;
-                try { errMsg = JSON.parse(errText)?.error || errMsg; } catch (_) { }
-                throw new Error(errMsg);
+                throw new Error(data.error || `Error del servidor (${res.status})`);
             }
 
-            const data = await res.json();
             if (!data.token) throw new Error('El servidor no devolvió un token');
 
             localStorage.setItem('alex_io_token', data.token);
             localStorage.setItem('demo_email', email);
             localStorage.setItem('alex_io_role', data.role || 'OWNER');
             localStorage.setItem('alex_io_tenant', data.tenantId || '');
-            console.log('✅ Login OK, role:', data.role, 'plan:', data.plan || 'N/A');
-            // Redirect based on role
-            const targetPath = data.role === 'SUPERADMIN' ? '/#/admin' : '/#/dashboard';
-            window.location.href = targetPath;
+
+            if (isSignUp) {
+                setMessage('¡Cuenta creada exitosamente! Redirigiendo...');
+                setTimeout(() => {
+                    window.location.href = '/#/dashboard';
+                }, 1000);
+            } else {
+                const targetPath = data.role === 'SUPERADMIN' ? '/#/admin' : '/#/dashboard';
+                window.location.href = targetPath;
+            }
         } catch (error) {
-            console.error('Login Error:', error);
+            console.error('Auth Error:', error);
             if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
                 setMessage('No se puede conectar al servidor. Reintenta en 30 segundos.');
             } else {
