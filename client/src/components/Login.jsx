@@ -61,9 +61,12 @@ export default function Login() {
 
             localStorage.setItem('alex_io_token', data.token);
             localStorage.setItem('demo_email', email);
+            localStorage.setItem('alex_io_role', data.role || 'OWNER');
+            localStorage.setItem('alex_io_tenant', data.tenantId || '');
             console.log('✅ Login OK, role:', data.role, 'plan:', data.plan || 'N/A');
-            // Full reload so App.jsx re-reads token from localStorage
-            window.location.href = '/#/dashboard';
+            // Redirect based on role
+            const targetPath = data.role === 'SUPERADMIN' ? '/#/admin' : '/#/dashboard';
+            window.location.href = targetPath;
         } catch (error) {
             console.error('Login Error:', error);
             if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {

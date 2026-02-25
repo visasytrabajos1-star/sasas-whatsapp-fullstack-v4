@@ -241,10 +241,13 @@ router.post('/connect', async (req, res) => {
     }
 
     const instanceId = `alex_${Date.now()}`;
+    const tenantId = req.tenant?.id || 'unknown';
     const config = {
         companyName: cleanName,
         customPrompt,
         provider,
+        tenantId,
+        ownerEmail: req.tenant?.email || '',
         metaApiUrl,
         metaPhoneNumberId,
         metaAccessToken,
@@ -381,14 +384,24 @@ router.post('/webhook', async (req, res) => {
 });
 
 router.get('/status', (req, res) => {
-    const sessions = Array.from(sessionStatus.entries()).map(([instanceId, info]) => ({
+    const tenantId = req.tenant?.id;
+    const isAdmin = req.tenant?.role === 'SUPERADMIN';
+
+    const allSessions = Array.from(sessionStatus.entries()).map(([instanceId, info]) => ({
         instanceId,
         ...info,
+        tenantId: clientConfigs.get(instanceId)?.tenantId || null,
+        ownerEmail: clientConfigs.get(instanceId)?.ownerEmail || null,
         provider: info.provider || clientConfigs.get(instanceId)?.provider || 'baileys'
     }));
 
+    // Filter by tenant unless admin
+    const sessions = isAdmin
+        ? allSessions
+        : allSessions.filter(s => s.tenantId === tenantId);
+
     res.json({
-        active_sessions: activeSessions.size,
+        active_sessions: sessions.length,
         reconnecting_sessions: Array.from(reconnectAttempts.entries()).filter(([, attempts]) => attempts > 0).length,
         sessions,
         uptime: process.uptime(),

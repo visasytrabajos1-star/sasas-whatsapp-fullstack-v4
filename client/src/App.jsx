@@ -39,9 +39,11 @@ function App() {
       const backendToken = localStorage.getItem('alex_io_token');
       if (backendToken) {
         const demoEmail = localStorage.getItem('demo_email') || 'user@app.com';
-        console.log("🔑 [ALEX IO] Backend JWT found, creating session for:", demoEmail);
+        const userRole = localStorage.getItem('alex_io_role') || 'OWNER';
+        const tenantId = localStorage.getItem('alex_io_tenant') || '';
+        console.log("🔑 [ALEX IO] Backend JWT found, creating session for:", demoEmail, "role:", userRole);
         setSession({
-          user: { id: 'backend-jwt-user', email: demoEmail },
+          user: { id: 'backend-jwt-user', email: demoEmail, role: userRole, tenantId },
           access_token: backendToken
         });
       }
@@ -79,12 +81,19 @@ function App() {
     return children;
   };
 
+  const AdminRoute = ({ children }) => {
+    if (!session) return <Navigate to="/login" />;
+    const role = session.user?.role || localStorage.getItem('alex_io_role') || 'OWNER';
+    if (role !== 'SUPERADMIN') return <Navigate to="/dashboard" />;
+    return children;
+  };
+
   return (
     <AuthProvider>
       <Router>
         <div className="min-h-screen bg-black selection:bg-blue-500/30">
           <Routes>
-            <Route path="/login" element={!session ? <Login /> : <Navigate to="/dashboard" />} />
+            <Route path="/login" element={!session ? <Login /> : <Navigate to={session.user?.role === 'SUPERADMIN' ? '/admin' : '/dashboard'} />} />
 
             <Route path="/dashboard" element={
               <ProtectedRoute>
@@ -93,9 +102,9 @@ function App() {
             } />
 
             <Route path="/admin" element={
-              <ProtectedRoute>
+              <AdminRoute>
                 <AdminDashboard />
-              </ProtectedRoute>
+              </AdminRoute>
             } />
 
             <Route path="/superadmin" element={

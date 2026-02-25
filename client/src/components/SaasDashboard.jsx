@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState, Component } from 'react';
 import { Link } from 'react-router-dom';
-import { Shield, Activity, Settings, Smartphone, Plus, Loader, AlertTriangle, CheckCircle2, X, Wand2 } from 'lucide-react';
+import { Shield, Activity, Settings, Smartphone, Plus, Loader, AlertTriangle, CheckCircle2, X, Wand2, LogOut } from 'lucide-react';
 import PromptWizard from './PromptWizard';
-import { fetchJsonWithApiFallback, getLastResolvedApiBase, getPreferredApiBase } from '../api';
+import { fetchJsonWithApiFallback, getLastResolvedApiBase, getPreferredApiBase, getAuthHeaders } from '../api';
 
 const VERSION = 'v2.0.4.16';
 
@@ -47,9 +47,11 @@ class ErrorBoundary extends Component {
 }
 
 function SaasDashboard() {
-  const [instances, setInstances] = useState([
-    { id: 1, name: 'Mi Negocio', status: 'online', phone: '+1234567890', provider: 'baileys' }
-  ]);
+  const userEmail = localStorage.getItem('demo_email') || 'user@app.com';
+  const userRole = localStorage.getItem('alex_io_role') || 'OWNER';
+  const userTenant = localStorage.getItem('alex_io_tenant') || '';
+
+  const [instances, setInstances] = useState([]);
   const [selected, setSelected] = useState(null);
   const [connecting, setConnecting] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
@@ -81,7 +83,10 @@ function SaasDashboard() {
   const fetchInstances = async () => {
     setLoadingInstances(true);
     try {
-      const { response, data } = await fetchJsonWithApiFallback('/api/saas/status', { timeoutMs: 15000 });
+      const { response, data } = await fetchJsonWithApiFallback('/api/saas/status', {
+        timeoutMs: 15000,
+        headers: { ...getAuthHeaders() }
+      });
       if (response.ok && data.sessions) {
         setInstances(data.sessions.map(s => ({
           ...s,
@@ -130,7 +135,7 @@ function SaasDashboard() {
 
     const poll = async () => {
       try {
-        const { response: statusRes, data: statusData } = await fetchJsonWithApiFallback(`/api/saas/status/${instanceId}`, { timeoutMs: 30000 });
+        const { response: statusRes, data: statusData } = await fetchJsonWithApiFallback(`/api/saas/status/${instanceId}`, { timeoutMs: 30000, headers: { ...getAuthHeaders() } });
         setApiDebugUrl(getLastResolvedApiBase() || getPreferredApiBase() || 'No resuelta');
 
         if (!statusRes.ok) return;
@@ -176,7 +181,7 @@ function SaasDashboard() {
       const { response: res, data } = await fetchJsonWithApiFallback('/api/saas/connect', {
         timeoutMs: 120000,
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({
           companyName: name,
           customPrompt: `Eres un asistente virtual de ${name}`,
@@ -256,7 +261,7 @@ function SaasDashboard() {
         const { data } = await fetchJsonWithApiFallback(`/api/saas/config/${selected.instanceId}`, {
           timeoutMs: 30000,
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
           body: JSON.stringify(configDraft)
         });
 
@@ -335,8 +340,26 @@ function SaasDashboard() {
           <h1 className="text-2xl font-bold">ALEX <span className="text-blue-500">IO</span></h1>
           <span className="text-[10px] bg-blue-600/20 border border-blue-500/30 text-blue-400 font-bold px-2 py-0.5 rounded-full">{VERSION}</span>
         </div>
-        <div className="flex gap-4">
-          <Link to="/pricing" className="bg-blue-600 px-4 py-2 rounded font-bold hover:bg-blue-500">Planes</Link>
+        <div className="flex items-center gap-3">
+          <div className="text-right hidden sm:block">
+            <p className="text-xs text-slate-400">{userEmail}</p>
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">{userRole === 'SUPERADMIN' ? '⭐ Admin' : '👤 Cliente'}</p>
+          </div>
+          <Link to="/pricing" className="bg-blue-600 px-4 py-2 rounded font-bold hover:bg-blue-500 text-sm">Planes</Link>
+          <button
+            onClick={() => {
+              localStorage.removeItem('alex_io_token');
+              localStorage.removeItem('demo_email');
+              localStorage.removeItem('alex_io_role');
+              localStorage.removeItem('alex_io_tenant');
+              localStorage.removeItem('demo_mode');
+              window.location.href = '/#/login';
+            }}
+            className="text-slate-400 hover:text-red-400 transition-colors p-2"
+            title="Cerrar sesión"
+          >
+            <LogOut size={18} />
+          </button>
         </div>
       </header>
 

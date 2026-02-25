@@ -72,3 +72,8 @@ export const fetchJsonWithApiFallback = async (path, options = {}) => {
   const data = await response.json();
   return { response, data };
 };
+
+export const getAuthHeaders = () => {
+  const token = localStorage.getItem('alex_io_token');
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
+};
