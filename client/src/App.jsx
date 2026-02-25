@@ -1,7 +1,7 @@
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
-import { AuthProvider, useAuth } from './auth/AuthContext';
+import { AuthProvider } from './auth/AuthContext';
 import Login from './components/Login';
 
 import LandingPage from './components/LandingPage';
@@ -13,99 +13,110 @@ import PaymentSetup from './components/PaymentSetup';
 import SaasDashboard from './components/SaasDashboard';
 import SuperAdminDashboard from './components/SuperAdminDashboard';
 
-console.log("📦 [ALEX IO] App Registry Loaded");
+console.log("📦 [ALEX IO] App v2.0.4.28 Loaded");
 
 function App() {
-  console.log("🛸 [ALEX IO] App Component Rendering Started");
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log("🔄 [ALEX IO] Initializing Session Check...");
-    const demoMode = localStorage.getItem('demo_mode') === 'true';
+    let didCancel = false;
 
-    if (demoMode) {
-      console.warn("🛡️ [ALEX IO] DEMO MODE ACTIVE");
-      setSession({
-        user: { id: 'demo-admin-id', email: 'admin@demo.com' }
-      });
-      setLoading(false);
-      return;
-    }
-
-    // Helper: build a session from our own JWT stored in localStorage
-    const buildJwtSession = () => {
-      const backendToken = localStorage.getItem('alex_io_token');
-      if (!backendToken) return null;
-      const demoEmail = localStorage.getItem('demo_email') || 'user@app.com';
-      const userRole = localStorage.getItem('alex_io_role') || 'OWNER';
-      const tenantId = localStorage.getItem('alex_io_tenant') || '';
-      console.log("🔑 [ALEX IO] Backend JWT found for:", demoEmail, "role:", userRole);
-      return {
-        user: { id: 'backend-jwt-user', email: demoEmail, role: userRole, tenantId },
-        access_token: backendToken
-      };
+    const finishLoading = (sess) => {
+      if (!didCancel) {
+        setSession(sess);
+        setLoading(false);
+      }
     };
 
-    if (!supabase) {
-      console.warn("⚠️ [ALEX IO] Supabase client is NULL or missing config");
-      const jwtSession = buildJwtSession();
-      if (jwtSession) setSession(jwtSession);
-      setLoading(false);
+    // Helper: build session from our backend JWT in localStorage
+    const buildJwtSession = () => {
+      try {
+        const token = localStorage.getItem('alex_io_token');
+        if (!token) return null;
+        return {
+          user: {
+            id: 'jwt-user',
+            email: localStorage.getItem('demo_email') || 'user@app.com',
+            role: localStorage.getItem('alex_io_role') || 'OWNER',
+            tenantId: localStorage.getItem('alex_io_tenant') || ''
+          },
+          access_token: token
+        };
+      } catch { return null; }
+    };
+
+    // 1. Demo mode
+    if (localStorage.getItem('demo_mode') === 'true') {
+      finishLoading({ user: { id: 'demo', email: 'admin@demo.com' } });
       return;
     }
 
-    // SAFETY TIMEOUT: never hang on loading forever
+    // 2. If no Supabase client, use JWT only
+    if (!supabase) {
+      finishLoading(buildJwtSession());
+      return;
+    }
+
+    // 3. SAFETY: always resolve loading within 3 seconds
     const safetyTimer = setTimeout(() => {
-      console.warn('⏰ [ALEX IO] Safety timeout - forcing loading=false');
-      setLoading(false);
+      console.warn('⏰ Safety timeout');
+      finishLoading(buildJwtSession());
     }, 3000);
 
-    supabase.auth.getSession().then(({ data: { session: supabaseSession } }) => {
+    // 4. Try Supabase session
+    try {
+      supabase.auth.getSession()
+        .then(({ data }) => {
+          clearTimeout(safetyTimer);
+          const s = data?.session;
+          if (s) {
+            // Save token for backend API calls
+            try {
+              localStorage.setItem('alex_io_token', s.access_token);
+              localStorage.setItem('demo_email', s.user?.email || '');
+            } catch { }
+            finishLoading(s);
+          } else {
+            finishLoading(buildJwtSession());
+          }
+        })
+        .catch(() => {
+          clearTimeout(safetyTimer);
+          finishLoading(buildJwtSession());
+        });
+    } catch {
       clearTimeout(safetyTimer);
-      if (supabaseSession) {
-        // Google OAuth session
-        console.log("🔑 [ALEX IO] Supabase OAuth session active");
-        setSession(supabaseSession);
-      } else {
-        // No Supabase session — check for our own JWT (email/password login)
-        const jwtSession = buildJwtSession();
-        if (jwtSession) {
-          setSession(jwtSession);
-        } else {
-          console.log("⚠️ [ALEX IO] No active session found");
-          setSession(null);
+      finishLoading(buildJwtSession());
+    }
+
+    // 5. Listen for auth changes (login/logout)
+    let subscription;
+    try {
+      const result = supabase.auth.onAuthStateChange((_event, newSession) => {
+        if (newSession) {
+          try {
+            localStorage.setItem('alex_io_token', newSession.access_token);
+            localStorage.setItem('demo_email', newSession.user?.email || '');
+          } catch { }
+          setSession(newSession);
         }
-      }
-      setLoading(false);
-    }).catch(err => {
-      clearTimeout(safetyTimer);
-      console.error("❌ [ALEX IO] Auth Check Failure:", err);
-      // On error, still try JWT fallback
-      const jwtSession = buildJwtSession();
-      if (jwtSession) setSession(jwtSession);
-      setLoading(false);
-    });
+      });
+      subscription = result?.data?.subscription;
+    } catch { }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      if (newSession) {
-        // Save Supabase token for backend API calls
-        localStorage.setItem('alex_io_token', newSession.access_token);
-        localStorage.setItem('demo_email', newSession.user?.email || '');
-        localStorage.setItem('alex_io_role', newSession.user?.role || 'OWNER');
-        setSession(newSession);
-      }
-      // Don't clear JWT session on Supabase state changes if no new session
-    });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      didCancel = true;
+      try { subscription?.unsubscribe(); } catch { }
+    };
   }, []);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center text-white p-6 font-sans">
-        <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-slate-400 animate-pulse font-bold tracking-widest uppercase text-xs">Cargando ALEX IO...</p>
+      <div style={{ minHeight: '100vh', background: '#0f172a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+        <div style={{ width: 48, height: 48, border: '4px solid #3b82f6', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+        <p style={{ marginTop: 16, color: '#94a3b8', fontSize: 12, letterSpacing: 2 }}>CARGANDO ALEX IO v28...</p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       </div>
     );
   }

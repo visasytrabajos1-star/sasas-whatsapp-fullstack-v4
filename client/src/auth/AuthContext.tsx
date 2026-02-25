@@ -1,17 +1,10 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User } from '@supabase/supabase-js';
 import { supabase } from '../supabaseClient';
 
-interface AuthContextType {
-    user: User | null;
-    loading: boolean;
-    signOut: () => Promise<void>;
-}
+const AuthContext = createContext(undefined);
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [user, setUser] = useState<User | null>(null);
+export const AuthProvider = ({ children }) => {
+    const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -20,25 +13,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             return;
         }
 
-        // Check initial session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setUser(session?.user ?? null);
-            setLoading(false);
-        });
+        // Safety timeout
+        const timer = setTimeout(() => setLoading(false), 3000);
 
-        // Listen for auth changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setUser(session?.user ?? null);
+        try {
+            supabase.auth.getSession()
+                .then(({ data }) => {
+                    clearTimeout(timer);
+                    setUser(data?.session?.user ?? null);
+                    setLoading(false);
+                })
+                .catch(() => {
+                    clearTimeout(timer);
+                    setLoading(false);
+                });
+        } catch {
+            clearTimeout(timer);
             setLoading(false);
-        });
+        }
 
-        return () => subscription.unsubscribe();
+        let subscription;
+        try {
+            const result = supabase.auth.onAuthStateChange((_event, session) => {
+                setUser(session?.user ?? null);
+                setLoading(false);
+            });
+            subscription = result?.data?.subscription;
+        } catch { }
+
+        return () => {
+            try { subscription?.unsubscribe(); } catch { }
+        };
     }, []);
 
     const signOut = async () => {
-        if (supabase) {
-            await supabase.auth.signOut();
-        }
+        try {
+            if (supabase) await supabase.auth.signOut();
+            localStorage.removeItem('alex_io_token');
+            localStorage.removeItem('demo_email');
+            localStorage.removeItem('demo_mode');
+        } catch { }
     };
 
     return (
@@ -51,7 +65,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (context === undefined) {
-        throw new Error('useAuth must be used within an AuthProvider');
+        // Return a safe fallback instead of throwing
+        return { user: null, loading: false, signOut: async () => { } };
     }
     return context;
 };
