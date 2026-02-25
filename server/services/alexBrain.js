@@ -8,6 +8,8 @@ const crypto = require('crypto');
 const GEMINI_KEY = process.env.GEMINI_API_KEY || process.env.GENAI_API_KEY;
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
 const DEEPSEEK_KEY = process.env.DEEPSEEK_API_KEY;
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-3-5-haiku-latest';
 
 // Global Response Cache
 global.responseCache = global.responseCache || new NodeCache({ stdTTL: 1800, checkperiod: 300 });
@@ -62,7 +64,37 @@ async function generateResponse({ message, history = [], botConfig = {} }) {
         }
     }
 
-    // 4. Fallback: OpenAI
+    // 4. Fallback: Claude (Anthropic)
+    if (!responseText && ANTHROPIC_KEY) {
+        try {
+            const claudeMessages = [
+                ...history.slice(-6).map(h => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content || h.text })),
+                { role: 'user', content: message }
+            ];
+            const claudeRes = await axios.post('https://api.anthropic.com/v1/messages', {
+                model: ANTHROPIC_MODEL,
+                max_tokens: 500,
+                system: systemPrompt,
+                messages: claudeMessages
+            }, {
+                headers: {
+                    'x-api-key': ANTHROPIC_KEY,
+                    'anthropic-version': '2023-06-01',
+                    'content-type': 'application/json'
+                },
+                timeout: 15000
+            });
+            const claudeContent = claudeRes.data?.content;
+            if (Array.isArray(claudeContent) && claudeContent.length > 0) {
+                responseText = claudeContent.map(c => c.text || '').join('');
+                usedModel = ANTHROPIC_MODEL;
+            }
+        } catch (err) {
+            console.warn('⚠️ Claude error:', err.message);
+        }
+    }
+
+    // 5. Fallback: OpenAI
     if (!responseText && openai) {
         try {
             const gptRes = await openai.chat.completions.create({
@@ -76,7 +108,7 @@ async function generateResponse({ message, history = [], botConfig = {} }) {
         }
     }
 
-    // 5. Final Safeguard (No loop)
+    // 6. Final Safeguard (No loop)
     if (!responseText) {
         responseText = '¡Hola! Parece que mi conexión a la IA está un poco lenta. ¿Podrías repetirme tu mensaje? Estoy aquí para ayudarte.';
         usedModel = 'safeguard';
@@ -87,7 +119,7 @@ async function generateResponse({ message, history = [], botConfig = {} }) {
         trace: { model: usedModel, timestamp: new Date().toISOString() }
     };
 
-    // 6. TTS Implementation (Voice)
+    // 7. TTS Implementation (Voice)
     if (openai) {
         try {
             const mp3 = await openai.audio.speech.create({
@@ -101,7 +133,7 @@ async function generateResponse({ message, history = [], botConfig = {} }) {
         }
     }
 
-    // 7. Save to Cache
+    // 8. Save to Cache
     global.responseCache.set(cacheKey, result);
 
     return result;
