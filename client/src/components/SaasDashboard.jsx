@@ -427,7 +427,7 @@ function SaasDashboard() {
             disabled={connecting}
             className="w-full mt-4 py-2 border border-dashed border-slate-700 text-slate-500 rounded-lg hover:border-blue-500 hover:text-blue-500 flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            {connecting ? <Loader className="animate-spin" size={16} /> : <Plus size={16} />} Nuevo Bot
+            {connecting ? <Loader className="animate-spin" size={16} /> : <Plus size={16} />} <span>Nuevo Bot</span>
           </button>
         </aside>
 
@@ -488,7 +488,7 @@ function SaasDashboard() {
                   )}
 
                   <button onClick={handleSaveConfig} disabled={savingConfig} className="bg-blue-600 hover:bg-blue-500 px-6 py-2 rounded font-bold disabled:opacity-50 transition-colors">
-                    {savingConfig ? 'Guardando...' : 'Guardar Configuración'}
+                    <span>{savingConfig ? 'Guardando...' : 'Guardar Configuración'}</span>
                   </button>
                 </div>
               </div>
