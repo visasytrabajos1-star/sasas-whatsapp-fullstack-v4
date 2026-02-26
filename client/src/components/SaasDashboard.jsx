@@ -51,10 +51,6 @@ function SaasDashboard() {
   const userRole = localStorage.getItem('alex_io_role') || 'OWNER';
   const userTenant = localStorage.getItem('alex_io_tenant') || '';
 
-  const isDemo = localStorage.getItem('demo_mode') === 'true';
-
-  const [instances, setInstances] = useState([]);
-  const [selected, setSelected] = useState(null);
   const [connecting, setConnecting] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
   const [qrCode, setQrCode] = useState(null);
@@ -63,7 +59,6 @@ function SaasDashboard() {
   const [logs, setLogs] = useState([]);
   const [loadingInstances, setLoadingInstances] = useState(false);
   const [showNewBotModal, setShowNewBotModal] = useState(false);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   const [newBotName, setNewBotName] = useState('');
   const [newBotProvider, setNewBotProvider] = useState('baileys');
@@ -283,39 +278,6 @@ function SaasDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white font-sans">
-      {/* Upgrade Modal — Demo Mode */}
-      {showUpgradeModal && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-blue-500/40 rounded-2xl p-8 w-full max-w-md text-center shadow-2xl">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Shield size={32} className="text-white" />
-            </div>
-            <h3 className="text-2xl font-bold text-white mb-2">¡Estás en modo Demo!</h3>
-            <p className="text-slate-400 text-sm mb-6">
-              Para crear y gestionar tus bots de WhatsApp necesitás una cuenta registrada.
-              <br />Es gratis para empezar 🚀
-            </p>
-            <div className="space-y-3">
-              <a
-                href="/#/login"
-                onClick={() => {
-                  localStorage.removeItem('demo_mode');
-                  setShowUpgradeModal(false);
-                }}
-                className="block w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold py-3 rounded-xl transition-all"
-              >
-                🎉 Crear mi cuenta gratis
-              </a>
-              <button
-                onClick={() => setShowUpgradeModal(false)}
-                className="block w-full text-slate-500 hover:text-slate-300 text-sm py-2 transition-colors"
-              >
-                Seguir explorando demo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* New Bot Modal */}
       {showNewBotModal && (
@@ -389,7 +351,6 @@ function SaasDashboard() {
               localStorage.removeItem('demo_email');
               localStorage.removeItem('alex_io_role');
               localStorage.removeItem('alex_io_tenant');
-              localStorage.removeItem('demo_mode');
               window.location.href = '/#/login';
             }}
             className="text-slate-400 hover:text-red-400 transition-colors p-2"
@@ -423,7 +384,7 @@ function SaasDashboard() {
             ))}
           </div>
           <button
-            onClick={() => isDemo ? setShowUpgradeModal(true) : setShowNewBotModal(true)}
+            onClick={() => setShowNewBotModal(true)}
             disabled={connecting}
             className="w-full mt-4 py-2 border border-dashed border-slate-700 text-slate-500 rounded-lg hover:border-blue-500 hover:text-blue-500 flex items-center justify-center gap-2 disabled:opacity-50"
           >

@@ -145,16 +145,6 @@ export default function Login() {
                     </button>
                 </div>
 
-                {/* DEMO BUTTON */}
-                <button
-                    onClick={() => {
-                        localStorage.setItem('demo_mode', 'true');
-                        window.location.reload();
-                    }}
-                    className="w-full mb-4 py-2 border border-yellow-600/50 text-yellow-500 rounded-xl text-xs font-bold hover:bg-yellow-900/20 transition-all flex items-center justify-center gap-2"
-                >
-                    🚀 ACCESO DEMO (ADMIN/INVITADO)
-                </button>
 
                 {/* GOOGLE BUTTON */}
                 <button

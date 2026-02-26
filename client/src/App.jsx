@@ -46,12 +46,6 @@ function App() {
       } catch { return null; }
     };
 
-    // 1. Demo mode
-    if (localStorage.getItem('demo_mode') === 'true') {
-      finishLoading({ user: { id: 'demo', email: 'admin@demo.com' } });
-      return;
-    }
-
     // 2. If no Supabase client, use JWT only
     if (!supabase) {
       finishLoading(buildJwtSession());
