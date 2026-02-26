@@ -526,10 +526,24 @@ REGLAS PARA GENERAR EL PROMPT:
 3. Debe incluir instrucciones claras sobre tono, formalidad y uso de emojis.
 4. Debe incorporar las FAQs como conocimiento base.
 5. Debe respetar las reglas y límites definidos.
-6. Debe ser conciso pero completo (máximo 600 palabras).
-7. NO generes nada más que el system prompt. Sin explicaciones, sin markdown, solo el texto del prompt.
+6. NO generes nada más que un objeto JSON VÁLIDO. Sin markdown, sin explicaciones.
 
-Generá el system prompt ahora:`;
+EL JSON DEBE TENER EXACTAMENTE ESTA ESTRUCTURA STRINGIFICADA:
+{
+  "version": "1.0",
+  "constitution": "Eres el asistente de...",
+  "blocks": {
+    "role": "Tu rol es...",
+    "objectives": "El objetivo principal...",
+    "tone": "El tono a usar es...",
+    "rules": ["Regla 1", "Regla 2"],
+    "faqs": [{"q": "Pregunta 1", "a": "Respuesta 1"}],
+    "handoff": "Derivar a humano cuando..."
+  },
+  "super_prompt_base": "TEXTO_COMPLETO_CONCATENADO_DE_TODO_LO_ANTERIOR"
+}
+
+Generá el JSON ahora:`;
 
     try {
         const result = await alexBrain.generateResponse({
@@ -542,17 +556,21 @@ Generá el system prompt ahora:`;
         });
 
         if (result.text && result.text.length > 50) {
+            // Remove potential markdown code blocks like ```json ... ```
+            const cleanText = result.text.replace(/```(?:json)?|```/g, '').trim();
+            const parsed = JSON.parse(cleanText);
+
             return res.json({
                 success: true,
-                prompt: result.text,
+                prompt: parsed,
                 model_used: result.trace?.model || 'unknown'
             });
         }
-        throw new Error('Respuesta del modelo demasiado corta');
+        throw new Error('Respuesta del modelo demasiado corta o inválida');
     } catch (err) {
         console.warn('⚠️ AI prompt generation failed, using template:', err.message);
 
-        // Fallback: deterministic template
+        // Fallback: deterministic JSON template
         const lines = [];
         lines.push(`Eres el asistente virtual de "${businessName || 'nuestro negocio'}".`);
         if (businessType) lines.push(`Tipo de negocio: ${businessType}.`);
@@ -578,9 +596,25 @@ Generá el system prompt ahora:`;
         if (extra) lines.push(`\nInfo adicional: ${extra}`);
         lines.push('\nSiempre sé útil, conciso y amable.');
 
+        const fallbackJson = {
+            version: "1.0-fallback",
+            updated_at: new Date().toISOString(),
+            constitution: `Eres el asistente virtual de "${businessName || 'nuestro negocio'}".`,
+            blocks: {
+                role: businessType,
+                objectives: objective,
+                tone: `${tone} - ${formality}`,
+                rules: limits || [],
+                faqs: validFaqs.map(f => ({ q: f.question, a: f.answer })),
+                handoff: humanHandoff
+            },
+            wizard_input: req.body,
+            super_prompt_base: lines.join('\n')
+        };
+
         return res.json({
             success: true,
-            prompt: lines.join('\n'),
+            prompt: fallbackJson,
             model_used: 'template-fallback'
         });
     }

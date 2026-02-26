@@ -129,10 +129,17 @@ export default function PromptWizard({ onClose, onPromptGenerated, instanceName 
                 body: JSON.stringify(answers),
                 timeoutMs: 30000
             });
-            if (data.prompt) {
+            if (data.prompt && data.prompt.super_prompt_base) {
                 setGeneratedPrompt(data.prompt);
+            } else if (data.prompt && typeof data.prompt === 'string') {
+                // If it accidentally returned a string, wrap it
+                setGeneratedPrompt({
+                    version: "1.0-legacy",
+                    super_prompt_base: data.prompt,
+                    wizard_input: answers
+                });
             } else {
-                throw new Error(data.error || 'No se generó el prompt');
+                throw new Error(data.error || 'No se generó el prompt válido');
             }
         } catch (err) {
             // Fallback: generate locally if backend fails
@@ -167,11 +174,27 @@ export default function PromptWizard({ onClose, onPromptGenerated, instanceName 
         if (a.humanHandoff) lines.push(`\nDerivar a un humano cuando: ${a.humanHandoff}`);
         if (a.extra) lines.push(`\nInformación adicional: ${a.extra}`);
         lines.push('\nSiempre sé útil, conciso y amable. Si no sabés algo, decilo honestamente.');
-        return lines.join('\n');
+
+        return {
+            version: "1.0-local-fallback",
+            updated_at: new Date().toISOString(),
+            constitution: `Eres el asistente virtual de "${a.businessName || 'nuestro negocio'}".`,
+            blocks: {
+                role: a.businessType,
+                objectives: a.objective,
+                tone: `${a.tone} - ${a.formality}`,
+                rules: a.limits || [],
+                faqs: validFaqs ? validFaqs.map(f => ({ q: f.question, a: f.answer })) : [],
+                handoff: a.humanHandoff
+            },
+            wizard_input: a,
+            super_prompt_base: lines.join('\n')
+        };
     };
 
     const handleCopy = () => {
-        navigator.clipboard.writeText(generatedPrompt);
+        const textToCopy = generatedPrompt?.super_prompt_base || '';
+        navigator.clipboard.writeText(textToCopy);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
@@ -214,9 +237,16 @@ export default function PromptWizard({ onClose, onPromptGenerated, instanceName 
                             <div className="flex items-center gap-2 text-green-400">
                                 <Sparkles size={20} />
                                 <h3 className="text-lg font-bold">¡Prompt generado!</h3>
+                                {generatedPrompt?.version && (
+                                    <span className="ml-auto text-xs bg-slate-800 text-slate-400 px-2 py-1 rounded">
+                                        v{generatedPrompt.version}
+                                    </span>
+                                )}
                             </div>
                             <div className="bg-slate-900 border border-slate-700 rounded-lg p-4 max-h-64 overflow-auto">
-                                <pre className="text-sm text-slate-200 whitespace-pre-wrap font-mono">{generatedPrompt}</pre>
+                                <pre className="text-sm text-slate-200 whitespace-pre-wrap font-mono">
+                                    {generatedPrompt?.super_prompt_base || JSON.stringify(generatedPrompt, null, 2)}
+                                </pre>
                             </div>
                             <div className="flex gap-3">
                                 <button onClick={handleCopy} className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-bold transition-colors">
@@ -273,12 +303,12 @@ export default function PromptWizard({ onClose, onPromptGenerated, instanceName 
                                             key={opt}
                                             onClick={() => handleOptionSelect(opt)}
                                             className={`text-left p-3 rounded-lg border text-sm transition-all ${currentStep.multiSelect
-                                                    ? answers[currentStep.field]?.includes(opt)
-                                                        ? 'bg-blue-600/20 border-blue-500 text-blue-200'
-                                                        : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500'
-                                                    : answers[currentStep.field] === opt
-                                                        ? 'bg-blue-600/20 border-blue-500 text-blue-200'
-                                                        : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500'
+                                                ? answers[currentStep.field]?.includes(opt)
+                                                    ? 'bg-blue-600/20 border-blue-500 text-blue-200'
+                                                    : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500'
+                                                : answers[currentStep.field] === opt
+                                                    ? 'bg-blue-600/20 border-blue-500 text-blue-200'
+                                                    : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500'
                                                 }`}
                                         >
                                             {opt}
@@ -308,8 +338,8 @@ export default function PromptWizard({ onClose, onPromptGenerated, instanceName 
                                                     key={opt}
                                                     onClick={() => setAnswer(extra.field, opt)}
                                                     className={`px-3 py-1.5 rounded-lg border text-xs transition-all ${answers[extra.field] === opt
-                                                            ? 'bg-purple-600/20 border-purple-500 text-purple-200'
-                                                            : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500'
+                                                        ? 'bg-purple-600/20 border-purple-500 text-purple-200'
+                                                        : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500'
                                                         }`}
                                                 >
                                                     {opt}

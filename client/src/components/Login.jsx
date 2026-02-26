@@ -10,6 +10,7 @@ export default function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isSignUp, setIsSignUp] = useState(false);
+    const [rememberSession, setRememberSession] = useState(true);
     const [message, setMessage] = useState('');
     const [messageType, setMessageType] = useState('error'); // 'error' | 'success'
 
@@ -65,16 +66,22 @@ export default function Login() {
                 );
             } else {
                 // LOGIN — Email + contraseña via Supabase
-                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                const normalizedEmail = email.trim().toLowerCase();
+                const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
                 if (error) throw error;
 
                 // Guardar token en localStorage para el backend
                 localStorage.setItem('alex_io_token', data.session.access_token);
                 localStorage.setItem('demo_email', data.user.email);
-                localStorage.setItem('alex_io_role', 'OWNER');
+                localStorage.setItem('alex_io_role', data.user?.user_metadata?.role || 'OWNER');
+
+                if (!rememberSession) {
+                    sessionStorage.setItem('alex_io_token', data.session.access_token);
+                    localStorage.removeItem('alex_io_token');
+                }
 
                 // Navegar sin recargar la página (mantiene la sesión de Supabase en memoria)
-                navigate('/dashboard');
+                navigate((data.user?.user_metadata?.role === 'SUPERADMIN') ? '/admin' : '/dashboard');
             }
         } catch (error) {
             console.error('Auth Error:', error);

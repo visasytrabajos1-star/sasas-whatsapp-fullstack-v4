@@ -66,6 +66,7 @@ function SaasDashboard() {
     name: '',
     provider: 'baileys',
     customPrompt: 'Eres un asistente virtual amigable y profesional.',
+    super_prompt_json: null,
     metaApiUrl: '',
     metaPhoneNumberId: '',
     metaAccessToken: '',
@@ -113,6 +114,7 @@ function SaasDashboard() {
       name: selected.name || '',
       provider: selected.provider || 'baileys',
       customPrompt: selected.customPrompt || 'Eres un asistente virtual amigable y profesional.',
+      super_prompt_json: selected.super_prompt_json || null,
       metaApiUrl: selected.metaApiUrl || '',
       metaPhoneNumberId: selected.metaPhoneNumberId || '',
       metaAccessToken: selected.metaAccessToken || '',
@@ -203,6 +205,7 @@ function SaasDashboard() {
         name,
         provider,
         customPrompt: `Eres un asistente virtual de ${name}`,
+        super_prompt_json: null,
         metaApiUrl: '',
         metaPhoneNumberId: '',
         metaAccessToken: '',
@@ -500,7 +503,17 @@ function SaasDashboard() {
       {showWizard && (
         <PromptWizard
           onClose={() => setShowWizard(false)}
-          onPromptGenerated={(prompt) => setConfigDraft(prev => ({ ...prev, customPrompt: prompt }))}
+          onPromptGenerated={(payload) => {
+            if (typeof payload === 'object') {
+              setConfigDraft(prev => ({
+                ...prev,
+                customPrompt: payload.super_prompt_base,
+                super_prompt_json: payload
+              }));
+            } else {
+              setConfigDraft(prev => ({ ...prev, customPrompt: payload }));
+            }
+          }}
           instanceName={selected?.name || configDraft.name}
         />
       )}
