@@ -31,7 +31,7 @@ class ErrorBoundary extends Component {
           <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-8 max-w-lg text-center">
             <AlertTriangle size={48} className="text-red-400 mx-auto mb-4" />
             <h2 className="text-xl font-bold text-white mb-2">Error del Dashboard</h2>
-            <p className="text-red-300 text-sm mb-4">{this.state.error?.message}</p>
+            <p className="text-red-300 text-sm mb-4">{this.state.error?.message || 'Error inesperado'}</p>
             <button
               onClick={() => this.setState({ hasError: false, error: null })}
               className="bg-red-600 hover:bg-red-500 text-white px-6 py-2 rounded-lg font-bold"
@@ -58,6 +58,8 @@ function SaasDashboard() {
   const [notice, setNotice] = useState(null);
   const [logs, setLogs] = useState([]);
   const [loadingInstances, setLoadingInstances] = useState(false);
+  const [instances, setInstances] = useState([]);
+  const [selected, setSelected] = useState(null);
   const [showNewBotModal, setShowNewBotModal] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   const [newBotName, setNewBotName] = useState('');
@@ -503,15 +505,27 @@ function SaasDashboard() {
       {showWizard && (
         <PromptWizard
           onClose={() => setShowWizard(false)}
-          onPromptGenerated={(payload) => {
-            if (typeof payload === 'object') {
-              setConfigDraft(prev => ({
-                ...prev,
-                customPrompt: payload.super_prompt_base,
-                super_prompt_json: payload
-              }));
-            } else {
-              setConfigDraft(prev => ({ ...prev, customPrompt: payload }));
+          onPromptGenerated={async (prompt, promptMeta) => {
+            setConfigDraft(prev => ({ ...prev, customPrompt: prompt }));
+
+            try {
+              if (selected?.instanceId && prompt) {
+                await fetchJsonWithApiFallback('/api/saas/prompt-versions', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    ...getAuthHeaders()
+                  },
+                  body: JSON.stringify({
+                    instanceId: selected.instanceId,
+                    prompt,
+                    super_prompt_json: promptMeta || null,
+                    status: 'test'
+                  })
+                });
+              }
+            } catch (error) {
+              console.warn('No se pudo versionar el prompt automáticamente:', error.message);
             }
           }}
           instanceName={selected?.name || configDraft.name}
