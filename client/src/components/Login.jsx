@@ -219,7 +219,7 @@ export default function Login() {
                         className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold py-3.5 rounded-xl shadow-lg transition-all transform hover:-translate-y-0.5 disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                         {loading && <Loader2 className="animate-spin" size={20} />}
-                        {isSignUp ? 'Crear Cuenta' : 'Entrar'}
+                        <span>{isSignUp ? 'Crear Cuenta' : 'Entrar'}</span>
                     </button>
                 </form>
 
