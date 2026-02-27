@@ -19,6 +19,8 @@ const authenticateTenant = async (req, res, next) => {
     const token = authHeader.split(' ')[1];
 
     try {
+        const unverified = jwt.decode(token);
+
         // 1. Check if it's a bypass token first
         if (token === 'master-superadmin-token-bypass') {
             req.tenant = {
