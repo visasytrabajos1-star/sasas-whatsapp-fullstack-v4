@@ -62,13 +62,15 @@ function SaasDashboard() {
   const [selected, setSelected] = useState(null);
   const [showNewBotModal, setShowNewBotModal] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
+  const [promptVersions, setPromptVersions] = useState([]);
+  const [loadingPromptVersions, setLoadingPromptVersions] = useState(false);
+  const [promotingVersionId, setPromotingVersionId] = useState(null);
   const [newBotName, setNewBotName] = useState('');
   const [newBotProvider, setNewBotProvider] = useState('baileys');
   const [configDraft, setConfigDraft] = useState({
     name: '',
     provider: 'baileys',
     customPrompt: 'Eres un asistente virtual amigable y profesional.',
-    super_prompt_json: null,
     metaApiUrl: '',
     metaPhoneNumberId: '',
     metaAccessToken: '',
@@ -80,6 +82,11 @@ function SaasDashboard() {
     if (resolved) setApiDebugUrl(resolved);
     fetchInstances();
   }, []);
+
+  useEffect(() => {
+    if (selected?.instanceId) fetchPromptVersions(selected.instanceId);
+    else setPromptVersions([]);
+  }, [selected?.instanceId]);
 
   const fetchInstances = async () => {
     setLoadingInstances(true);
@@ -116,7 +123,6 @@ function SaasDashboard() {
       name: selected.name || '',
       provider: selected.provider || 'baileys',
       customPrompt: selected.customPrompt || 'Eres un asistente virtual amigable y profesional.',
-      super_prompt_json: selected.super_prompt_json || null,
       metaApiUrl: selected.metaApiUrl || '',
       metaPhoneNumberId: selected.metaPhoneNumberId || '',
       metaAccessToken: selected.metaAccessToken || '',
@@ -250,6 +256,76 @@ function SaasDashboard() {
       pushNotice('error', error.message);
     } finally {
       setConnecting(false);
+    }
+  };
+
+  const fetchPromptVersions = async (instanceId) => {
+    if (!instanceId) {
+      setPromptVersions([]);
+      return;
+    }
+
+    setLoadingPromptVersions(true);
+    try {
+      const { data } = await fetchJsonWithApiFallback(`/api/saas/prompt-versions/${instanceId}`, {
+        timeoutMs: 20000,
+        headers: { ...getAuthHeaders() }
+      });
+      setPromptVersions(data.versions || []);
+    } catch (error) {
+      console.warn('No se pudieron cargar versiones del prompt:', error.message);
+      setPromptVersions([]);
+    } finally {
+      setLoadingPromptVersions(false);
+    }
+  };
+
+  const handlePromotePromptVersion = async (version) => {
+    if (!selected?.instanceId || !version?.id) return;
+    setPromotingVersionId(version.id);
+    try {
+      const { data } = await fetchJsonWithApiFallback(`/api/saas/prompt-versions/${selected.instanceId}/${version.id}/promote`, {
+        method: 'PATCH',
+        timeoutMs: 20000,
+        headers: { ...getAuthHeaders() }
+      });
+
+      const activePrompt = data.version?.prompt_text || version.prompt_text;
+      if (activePrompt) {
+        setConfigDraft((prev) => ({ ...prev, customPrompt: activePrompt }));
+
+        await fetchJsonWithApiFallback(`/api/saas/config/${selected.instanceId}`, {
+          timeoutMs: 30000,
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          body: JSON.stringify({ ...configDraft, customPrompt: activePrompt })
+        });
+      }
+
+      await fetchPromptVersions(selected.instanceId);
+      pushNotice('success', 'Versión promovida como activa.');
+    } catch (error) {
+      pushNotice('error', error.message || 'No se pudo promover la versión.');
+    } finally {
+      setPromotingVersionId(null);
+    }
+  };
+
+  const handleArchivePromptVersion = async (version) => {
+    if (!selected?.instanceId || !version?.id) return;
+    setPromotingVersionId(version.id);
+    try {
+      await fetchJsonWithApiFallback(`/api/saas/prompt-versions/${selected.instanceId}/${version.id}/archive`, {
+        method: 'PATCH',
+        timeoutMs: 20000,
+        headers: { ...getAuthHeaders() }
+      });
+      await fetchPromptVersions(selected.instanceId);
+      pushNotice('success', 'Versión archivada correctamente.');
+    } catch (error) {
+      pushNotice('error', error.message || 'No se pudo archivar la versión.');
+    } finally {
+      setPromotingVersionId(null);
     }
   };
 
@@ -423,6 +499,47 @@ function SaasDashboard() {
                       </button>
                     </div>
                     <textarea className="w-full bg-slate-900 border border-slate-700 rounded p-2 h-32" value={configDraft.customPrompt} onChange={(e) => setConfigDraft((prev) => ({ ...prev, customPrompt: e.target.value }))} />
+
+                    <div className="mt-3 bg-slate-900 border border-slate-700 rounded p-3">
+                      <p className="text-xs text-slate-400 mb-2 uppercase tracking-wider font-bold">Versiones Fase 2</p>
+                      {loadingPromptVersions ? (
+                        <p className="text-xs text-slate-500">Cargando versiones...</p>
+                      ) : promptVersions.length === 0 ? (
+                        <p className="text-xs text-slate-500">Aún no hay versiones registradas para esta instancia.</p>
+                      ) : (
+                        <div className="space-y-2 max-h-40 overflow-auto pr-1">
+                          {promptVersions.map((v) => (
+                            <div key={v.id} className="border border-slate-700 rounded p-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-xs text-slate-300 font-semibold">{v.version || 'v1'} · {v.status}</p>
+                                <p className="text-[10px] text-slate-500">{v.created_at ? new Date(v.created_at).toLocaleString() : ''}</p>
+                              </div>
+                              <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">{v.prompt_text || 'Sin contenido'}</p>
+                              <div className="flex gap-2 mt-2">
+                                {v.status !== 'active' && (
+                                  <button
+                                    onClick={() => handlePromotePromptVersion(v)}
+                                    disabled={promotingVersionId === v.id}
+                                    className="text-[11px] bg-green-700 hover:bg-green-600 px-2 py-1 rounded disabled:opacity-50"
+                                  >
+                                    Activar
+                                  </button>
+                                )}
+                                {v.status !== 'archived' && (
+                                  <button
+                                    onClick={() => handleArchivePromptVersion(v)}
+                                    disabled={promotingVersionId === v.id}
+                                    className="text-[11px] bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded disabled:opacity-50"
+                                  >
+                                    Archivar
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {configDraft.provider === 'meta' && (
@@ -523,6 +640,7 @@ function SaasDashboard() {
                     status: 'test'
                   })
                 });
+                await fetchPromptVersions(selected.instanceId);
               }
             } catch (error) {
               console.warn('No se pudo versionar el prompt automáticamente:', error.message);

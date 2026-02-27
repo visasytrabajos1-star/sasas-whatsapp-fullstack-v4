@@ -14,8 +14,6 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     base: '/',
     build: {
-      outDir: 'build',
-      emptyOutDir: true,
       sourcemap: false,
       rollupOptions: {
         output: {
