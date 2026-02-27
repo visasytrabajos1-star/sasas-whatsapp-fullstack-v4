@@ -50,6 +50,7 @@ export const AuthProvider = ({ children }) => {
         try {
             if (supabase) await supabase.auth.signOut();
             localStorage.removeItem('alex_io_token');
+            sessionStorage.removeItem('alex_io_token');
             localStorage.removeItem('demo_email');
             localStorage.removeItem('demo_mode');
         } catch { }
