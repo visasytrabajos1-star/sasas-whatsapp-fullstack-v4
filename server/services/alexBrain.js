@@ -19,12 +19,12 @@ const genAI = GEMINI_KEY ? new GoogleGenerativeAI(GEMINI_KEY) : null;
 const openai = OPENAI_KEY ? new OpenAI({ apiKey: OPENAI_KEY }) : null;
 
 // Log available providers on startup
-console.log(`🧠 AI Providers: Gemini=${!!genAI} | OpenAI(TTS)=${!!openai} | DeepSeek=${!!DEEPSEEK_KEY} | Claude=${!!ANTHROPIC_KEY}`);
+console.log(`🧠 AI Brain initialized: OpenAI=${!!openai} | Gemini=${!!genAI} | DeepSeek=${!!DEEPSEEK_KEY}`);
 
 /**
- * ARQUITECTURA DE IA:
- *   TEXTO  → Gemini (principal) → DeepSeek → Claude → GPT-4o-mini → Safeguard
- *   VOZ    → OpenAI TTS-1 (siempre, si hay key)
+ * ARQUITECTURA DE IA (PRIORIDAD CHATGPT MINI 4.0):
+ *   TEXTO  → GPT-4o-mini (principal) → Gemini → DeepSeek → Claude → Safeguard
+ *   VOZ    → OpenAI TTS-1 (siempre activo si hay key)
  */
 async function generateResponse({ message, history = [], botConfig = {} }) {
     const botName = botConfig.bot_name || 'ALEX IO';
@@ -33,36 +33,57 @@ async function generateResponse({ message, history = [], botConfig = {} }) {
     // 1. Check Cache
     const cacheKey = crypto.createHash('md5').update(`${botName}:${message}`).digest('hex');
     const cached = global.responseCache.get(cacheKey);
-    if (cached) return { ...cached, fromCache: true };
+    if (cached) {
+        console.log(`🎯 [${botName}] Cache hit for message`);
+        return { ...cached, fromCache: true };
+    }
 
     let responseText = '';
     let usedModel = '';
 
     // ═══════════════════════════════════════════════
-    // 2. TEXTO — Principal: GEMINI
+    // 2. TEXTO — PRIORIDAD 1: OpenAI GPT-4o-mini
     // ═══════════════════════════════════════════════
-    if (genAI) {
-        const geminiModels = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-pro'];
-        for (const modelName of geminiModels) {
-            try {
-                const model = genAI.getGenerativeModel({ model: modelName });
-                const chat = model.startChat({
-                    history: history.slice(-6).map(h => ({ role: h.role === 'assistant' ? 'model' : 'user', parts: [{ text: h.content || h.text }] })),
-                    generationConfig: { maxOutputTokens: 500, temperature: 0.7 }
-                });
-                const result = await chat.sendMessage([{ text: `${systemPrompt}\n\nUsuario: ${message}` }]);
-                responseText = result.response.text();
-                usedModel = modelName;
-                break;
-            } catch (err) {
-                console.warn(`⚠️ Gemini ${modelName} error:`, err.message);
-            }
+    if (openai) {
+        try {
+            console.log(`🚀 [${botName}] Solicitando texto a GPT-4o-mini...`);
+            const gptRes = await openai.chat.completions.create({
+                model: 'gpt-4o-mini',
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    ...history.slice(-6).map(h => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content || h.text })),
+                    { role: 'user', content: message }
+                ],
+                temperature: 0.7,
+                max_tokens: 500
+            });
+            responseText = gptRes.choices[0].message.content;
+            usedModel = 'gpt-4o-mini';
+        } catch (err) {
+            console.warn('⚠️ OpenAI Text Error:', err.message);
         }
     }
 
-    // 3. Fallback texto: DeepSeek
+    // 3. Fallback: Gemini
+    if (!responseText && genAI) {
+        try {
+            console.log(`🚀 [${botName}] Fallback a Gemini...`);
+            const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+            const chat = model.startChat({
+                history: history.slice(-6).map(h => ({ role: h.role === 'assistant' ? 'model' : 'user', parts: [{ text: h.content || h.text }] })),
+            });
+            const result = await chat.sendMessage([{ text: `${systemPrompt}\n\nUsuario: ${message}` }]);
+            responseText = result.response.text();
+            usedModel = 'gemini-2.0-flash';
+        } catch (err) {
+            console.warn('⚠️ Gemini Fallback Error:', err.message);
+        }
+    }
+
+    // 4. Fallback: DeepSeek
     if (!responseText && DEEPSEEK_KEY) {
         try {
+            console.log(`🚀 [${botName}] Fallback a DeepSeek...`);
             const dsRes = await axios.post('https://api.deepseek.com/v1/chat/completions', {
                 model: 'deepseek-chat',
                 messages: [{ role: 'system', content: systemPrompt }, ...history.slice(-6), { role: 'user', content: message }]
@@ -70,50 +91,13 @@ async function generateResponse({ message, history = [], botConfig = {} }) {
             responseText = dsRes.data.choices[0].message.content;
             usedModel = 'deepseek-chat';
         } catch (err) {
-            console.warn('⚠️ DeepSeek error:', err.message);
+            console.warn('⚠️ DeepSeek Fallback Error:', err.message);
         }
     }
 
-    // 4. Fallback texto: Claude
-    if (!responseText && ANTHROPIC_KEY) {
-        try {
-            const claudeMessages = [
-                ...history.slice(-6).map(h => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content || h.text })),
-                { role: 'user', content: message }
-            ];
-            const claudeRes = await axios.post('https://api.anthropic.com/v1/messages', {
-                model: ANTHROPIC_MODEL, max_tokens: 500, system: systemPrompt, messages: claudeMessages
-            }, {
-                headers: { 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-                timeout: 15000
-            });
-            const claudeContent = claudeRes.data?.content;
-            if (Array.isArray(claudeContent) && claudeContent.length > 0) {
-                responseText = claudeContent.map(c => c.text || '').join('');
-                usedModel = ANTHROPIC_MODEL;
-            }
-        } catch (err) {
-            console.warn('⚠️ Claude error:', err.message);
-        }
-    }
-
-    // 5. Fallback texto: GPT-4o-mini (último recurso para texto)
-    if (!responseText && openai) {
-        try {
-            const gptRes = await openai.chat.completions.create({
-                model: 'gpt-4o-mini',
-                messages: [{ role: 'system', content: systemPrompt }, ...history.slice(-6), { role: 'user', content: message }]
-            });
-            responseText = gptRes.choices[0].message.content;
-            usedModel = 'gpt-4o-mini';
-        } catch (err) {
-            console.warn('⚠️ OpenAI text error:', err.message);
-        }
-    }
-
-    // 6. Safeguard
+    // 5. Safeguard
     if (!responseText) {
-        responseText = '¡Hola! Parece que mi conexión a la IA está un poco lenta. ¿Podrías repetirme tu mensaje? Estoy aquí para ayudarte.';
+        responseText = '¡Hola! Estoy procesando mucha información ahora mismo. ¿Podrías repetirme eso?';
         usedModel = 'safeguard';
     }
 
@@ -123,25 +107,34 @@ async function generateResponse({ message, history = [], botConfig = {} }) {
     };
 
     // ═══════════════════════════════════════════════
-    // 7. VOZ — SIEMPRE ChatGPT OpenAI TTS
+    // 6. VOZ — SIEMPRE OpenAI TTS-1 (Push-To-Talk)
     // ═══════════════════════════════════════════════
     if (openai && responseText && usedModel !== 'safeguard') {
         try {
+            console.log(`🎙️ [${botName}] Generando nota de voz con OpenAI TTS (Nova)...`);
             const opusAudio = await openai.audio.speech.create({
                 model: 'tts-1',
                 voice: 'nova',
-                input: responseText.slice(0, 4000),
-                response_format: 'opus'
+                input: responseText.slice(0, 4000), // Max allowed roughly
+                response_format: 'opus' // Formato nativo de WhatsApp
             });
-            result.audioBuffer = Buffer.from(await opusAudio.arrayBuffer());
-            result.audioMime = 'audio/ogg; codecs=opus';
-            console.log('🎙️ TTS generado por OpenAI (Opus/OGG)');
+
+            const buffer = Buffer.from(await opusAudio.arrayBuffer());
+            if (buffer && buffer.length > 0) {
+                result.audioBuffer = buffer;
+                result.audioMime = 'audio/ogg; codecs=opus';
+                console.log(`✅ TTS generado exitosamente (${buffer.length} bytes)`);
+            } else {
+                console.warn('⚠️ TTS generado pero el buffer está vacío.');
+            }
         } catch (err) {
-            console.error('❌ TTS OpenAI Error:', err.message);
+            console.error('❌ Error fatal generando TTS:', err.message);
         }
+    } else if (!openai) {
+        console.warn('⚠️ OpenAI no está configurado (falta KEY), no se generará voz.');
     }
 
-    // 8. Save to Cache
+    // Save to Cache
     global.responseCache.set(cacheKey, result);
 
     return result;
