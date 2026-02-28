@@ -54,43 +54,51 @@ const updateSessionStatus = async (instanceId, status, extra = {}) => {
     }
 
     const { provider, ...dbPayload } = payload;
-    const { error } = await supabase
-        .from(sessionsTable)
-        .upsert(dbPayload, { onConflict: 'instance_id' });
+    try {
+        const { error } = await supabase
+            .from(sessionsTable)
+            .upsert(dbPayload, { onConflict: 'instance_id' });
 
-    if (error) {
-        console.warn(`⚠️ Supabase session sync failed for ${instanceId}:`, error.message);
+        if (error) {
+            console.warn(`⚠️ Supabase session sync failed for ${instanceId} (schema issue?):`, error.message);
+        }
+    } catch (err) {
+        console.error(`❌ Unexpected crash during Supabase sync for ${instanceId}:`, err.message);
     }
 };
 
 const hydrateSessionStatus = async () => {
-    if (!isSupabaseEnabled) {
-        console.log('ℹ️ Supabase session persistence disabled (missing credentials).');
-        return;
+    try {
+        if (!isSupabaseEnabled) {
+            console.log('ℹ️ Supabase session persistence disabled (missing credentials).');
+            return;
+        }
+
+        const { data, error } = await supabase
+            .from(sessionsTable)
+            .select('instance_id,status,qr_code,updated_at,company_name')
+            .order('updated_at', { ascending: false })
+            .limit(200);
+
+        if (error) {
+            console.warn('⚠️ Could not hydrate session status from Supabase (schema mismatch?):', error.message);
+            return;
+        }
+
+        for (const row of data || []) {
+            sessionStatus.set(row.instance_id, {
+                status: row.status,
+                qr_code: row.qr_code,
+                updatedAt: row.updated_at,
+                companyName: row.company_name,
+                provider: null
+            });
+        }
+
+        console.log(`✅ Session status hydrated from Supabase (${(data || []).length} records).`);
+    } catch (err) {
+        console.warn('⚠️ Unexpected error hydrating session status:', err.message);
     }
-
-    const { data, error } = await supabase
-        .from(sessionsTable)
-        .select('instance_id,status,qr_code,updated_at,company_name')
-        .order('updated_at', { ascending: false })
-        .limit(200);
-
-    if (error) {
-        console.warn('⚠️ Could not hydrate session status from Supabase:', error.message);
-        return;
-    }
-
-    for (const row of data || []) {
-        sessionStatus.set(row.instance_id, {
-            status: row.status,
-            qr_code: row.qr_code,
-            updatedAt: row.updated_at,
-            companyName: row.company_name,
-            provider: null
-        });
-    }
-
-    console.log(`✅ Session status hydrated from Supabase (${(data || []).length} records).`);
 };
 
 const clearSessionRuntime = (instanceId) => {
@@ -104,8 +112,6 @@ const safeDeletePersistentSession = async (instanceId) => {
     const { error } = await supabase.from(sessionsTable).delete().eq('instance_id', instanceId);
     if (error) console.warn(`⚠️ Failed deleting ${instanceId} from Supabase:`, error.message);
 };
-
-
 
 const savePromptVersion = async ({ tenantId, instanceId, promptText, superPromptJson, status = 'test' }) => {
     const normalizedStatus = allowedPromptStatuses.has(status) ? status : 'test';
@@ -994,22 +1000,25 @@ router.patch('/prompt-versions/:instanceId/:versionId/archive', async (req, res)
 const restoreSessions = async () => {
     console.log('🔄 [RECOVERY] Iniciando recuperación de sesiones...');
 
-    // 1. Hidratar estados básicos
-    await hydrateSessionStatus();
-
-    if (!isSupabaseEnabled) {
-        console.log('ℹ️ Omitiendo recuperación automática (Supabase no habilitado).');
-        return;
-    }
-
     try {
+        // 1. Hidratar estados básicos
+        await hydrateSessionStatus();
+
+        if (!isSupabaseEnabled) {
+            console.log('ℹ️ Omitiendo recuperación automática (Supabase no habilitado).');
+            return;
+        }
+
         // 2. Buscar sesiones que estaban 'online' en el último estado
         const { data: onlineSessions, error } = await supabase
             .from(sessionsTable)
             .select('*')
             .eq('status', 'online');
 
-        if (error) throw error;
+        if (error) {
+            console.warn('⚠️ [RECOVERY] No se pudieron buscar sesiones (esquema incompatible?):', error.message);
+            return;
+        }
 
         console.log(`📡 [RECOVERY] Encontradas ${onlineSessions?.length || 0} sesiones para restaurar.`);
 
@@ -1017,7 +1026,6 @@ const restoreSessions = async () => {
             const instanceId = session.instance_id;
             const sessionPath = `${sessionsDir}/${instanceId}`;
 
-            // Solo restaurar si el archivo de credenciales existe
             if (fs.existsSync(sessionPath)) {
                 console.log(`✅ [RECOVERY] Restaurando bot: ${session.company_name} (${instanceId})`);
                 const config = {
@@ -1026,14 +1034,12 @@ const restoreSessions = async () => {
                     ownerEmail: session.owner_email,
                     provider: 'baileys'
                 };
-
-                // Conectar de nuevo sin retornar respuesta HTTP
                 connectToWhatsApp(instanceId, config).catch(e => {
                     console.error(`❌ [RECOVERY] Falló restauración de ${instanceId}:`, e.message);
                 });
             } else {
                 console.warn(`⚠️ [RECOVERY] Saltando ${instanceId}: Carpeta de sesión no encontrada.`);
-                updateSessionStatus(instanceId, 'disconnected', { companyName: session.company_name });
+                updateSessionStatus(instanceId, 'disconnected', { companyName: session.company_name }).catch(() => { });
             }
         }
     } catch (err) {
