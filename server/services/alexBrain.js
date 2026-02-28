@@ -19,7 +19,12 @@ const genAI = GEMINI_KEY ? new GoogleGenerativeAI(GEMINI_KEY) : null;
 const openai = OPENAI_KEY ? new OpenAI({ apiKey: OPENAI_KEY }) : null;
 
 // Log available providers on startup
-console.log(`🧠 AI Brain initialized: OpenAI=${!!openai} | Gemini=${!!genAI} | DeepSeek=${!!DEEPSEEK_KEY}`);
+const mask = (key) => key ? `${key.substring(0, 7)}...${key.substring(key.length - 4)}` : 'MISSING';
+console.log(`🧠 AI Brain initialized:`);
+console.log(`   - OpenAI Key: ${mask(OPENAI_KEY)}`);
+console.log(`   - Gemini Key: ${mask(GEMINI_KEY)}`);
+console.log(`   - DeepSeek Key: ${mask(DEEPSEEK_KEY)}`);
+console.log(`   - Auth Status: OpenAI=${!!openai} | Gemini=${!!genAI}`);
 
 /**
  * ARQUITECTURA DE IA (PRIORIDAD CHATGPT MINI 4.0):
@@ -32,9 +37,29 @@ async function generateResponse({ message, history = [], botConfig = {} }) {
 
     // 1. Check Cache
     const cacheKey = crypto.createHash('md5').update(`${botName}:${message}`).digest('hex');
-    const cached = global.responseCache.get(cacheKey);
+    let cached = global.responseCache.get(cacheKey);
+
     if (cached) {
         console.log(`🎯 [${botName}] Cache hit for message`);
+
+        // REGLA DE ORO: Si hay cache pero no hay audio y OpenAI está listo, generamos el audio ahora mismo
+        if (!cached.audioBuffer && openai && cached.text && cached.trace?.model !== 'safeguard') {
+            console.log(`🎙️ [${botName}] Generando audio para resultado cacheado...`);
+            try {
+                const opusAudio = await openai.audio.speech.create({
+                    model: 'tts-1',
+                    voice: 'nova',
+                    input: cached.text.slice(0, 4000),
+                    response_format: 'opus'
+                });
+                cached.audioBuffer = Buffer.from(await opusAudio.arrayBuffer());
+                cached.audioMime = 'audio/ogg; codecs=opus';
+                global.responseCache.set(cacheKey, cached); // Actualizar cache
+                console.log('✅ Audio cacheado generado y actualizado.');
+            } catch (err) {
+                console.warn('⚠️ Error generando audio para cache:', err.message);
+            }
+        }
         return { ...cached, fromCache: true };
     }
 

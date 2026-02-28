@@ -320,12 +320,12 @@ async function handleQRMessage(sock, msg, instanceId) {
         // Send voice note if audio was generated
         if (result.audioBuffer) {
             try {
-                await sock.sendMessage(remoteJid, {
+                const sentMsg = await sock.sendMessage(remoteJid, {
                     audio: result.audioBuffer,
                     mimetype: result.audioMime || 'audio/ogg; codecs=opus',
                     ptt: true // Send as voice note (push-to-talk style)
                 });
-                console.log(`🔊 [${config.companyName}] Audio enviado`);
+                console.log(`🔊 [${config.companyName}] Audio enviado con éxito (${result.audioBuffer.length} bytes). Msg ID: ${sentMsg?.key?.id}`);
             } catch (audioErr) {
                 console.warn(`⚠️ [${config.companyName}] No se pudo enviar audio:`, audioErr.message);
             }
