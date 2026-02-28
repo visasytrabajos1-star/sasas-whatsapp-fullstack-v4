@@ -251,6 +251,9 @@ hydrateSessionStatus().catch((error) => {
 async function handleQRMessage(sock, msg, instanceId) {
     if (!msg.message || msg.key.remoteJid === 'status@broadcast' || msg.key.fromMe) return;
 
+    // Log every message for debugging deaf/mute issues
+    console.log(`📩 [${instanceId}] Mensaje entrante de ${msg.key.remoteJid}:`, JSON.stringify(msg.message).substring(0, 100));
+
     const text = msg.message.conversation || msg.message.extendedTextMessage?.text || msg.message.imageMessage?.caption;
     const hasImage = !!(msg.message.imageMessage || msg.message.image);
 
@@ -293,6 +296,8 @@ async function handleQRMessage(sock, msg, instanceId) {
             }
         });
 
+        console.log(`🤖 [${config.companyName}] AI Result:`, !!result.text, 'Audio:', !!result.audioBuffer);
+
         if (result.text) {
             await sock.sendMessage(remoteJid, { text: result.text });
             console.log(`📤 [${config.companyName}] Respondido con ${result.trace.model}`);
@@ -325,7 +330,7 @@ async function handleQRMessage(sock, msg, instanceId) {
 
                 const sentMsg = await sock.sendMessage(remoteJid, {
                     audio: result.audioBuffer,
-                    mimetype: 'audio/mp4', // Forced mp4 for PTT compatibility
+                    mimetype: 'audio/ogg; codecs=opus', // Reverted to safer ogg
                     ptt: true // Send as voice note (push-to-talk style)
                 });
                 console.log(`🔊 [${config.companyName}] Audio enviado con éxito (${result.audioBuffer.length} bytes). Msg ID: ${sentMsg?.key?.id}`);
@@ -986,4 +991,57 @@ router.patch('/prompt-versions/:instanceId/:versionId/archive', async (req, res)
     }
 });
 
-module.exports = router;
+const restoreSessions = async () => {
+    console.log('🔄 [RECOVERY] Iniciando recuperación de sesiones...');
+
+    // 1. Hidratar estados básicos
+    await hydrateSessionStatus();
+
+    if (!isSupabaseEnabled) {
+        console.log('ℹ️ Omitiendo recuperación automática (Supabase no habilitado).');
+        return;
+    }
+
+    try {
+        // 2. Buscar sesiones que estaban 'online' en el último estado
+        const { data: onlineSessions, error } = await supabase
+            .from(sessionsTable)
+            .select('*')
+            .eq('status', 'online');
+
+        if (error) throw error;
+
+        console.log(`📡 [RECOVERY] Encontradas ${onlineSessions?.length || 0} sesiones para restaurar.`);
+
+        for (const session of onlineSessions || []) {
+            const instanceId = session.instance_id;
+            const sessionPath = `${sessionsDir}/${instanceId}`;
+
+            // Solo restaurar si el archivo de credenciales existe
+            if (fs.existsSync(sessionPath)) {
+                console.log(`✅ [RECOVERY] Restaurando bot: ${session.company_name} (${instanceId})`);
+                const config = {
+                    companyName: session.company_name,
+                    tenantId: session.tenant_id,
+                    ownerEmail: session.owner_email,
+                    provider: 'baileys'
+                };
+
+                // Conectar de nuevo sin retornar respuesta HTTP
+                connectToWhatsApp(instanceId, config).catch(e => {
+                    console.error(`❌ [RECOVERY] Falló restauración de ${instanceId}:`, e.message);
+                });
+            } else {
+                console.warn(`⚠️ [RECOVERY] Saltando ${instanceId}: Carpeta de sesión no encontrada.`);
+                updateSessionStatus(instanceId, 'disconnected', { companyName: session.company_name });
+            }
+        }
+    } catch (err) {
+        console.error('❌ [RECOVERY] Error crítico en restauración:', err.message);
+    }
+};
+
+module.exports = {
+    router,
+    restoreSessions
+};

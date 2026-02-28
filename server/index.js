@@ -191,7 +191,7 @@ app.get('/api/status', (req, res) => {
 });
 
 // WhatsApp Routes (Protected & Rate Limited by Tenant)
-const whatsappSaas = require('./services/whatsappSaas');
+const { router: whatsappSaas, restoreSessions } = require('./services/whatsappSaas');
 app.use('/api/saas', authenticateTenant, tenantLimiter, whatsappSaas);
 
 // Payment Routes (Protected & Rate Limited by Tenant)
@@ -219,4 +219,7 @@ app.listen(PORT, () => {
     logger.info(`🚀 ALEX IO SERVER V2 CORRIENDO EN PUERTO ${PORT}`);
     logger.info(`📡 WhatsApp Handler Listo...`);
     logger.info(`🧠 AI Brain Listo...`);
+
+    // Auto-restore previous sessions
+    restoreSessions().catch(e => logger.error(`❌ Session restoration failed: ${e.message}`));
 });
