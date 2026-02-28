@@ -255,24 +255,30 @@ hydrateSessionStatus().catch((error) => {
 
 // --- HANDLER: QR MODE (Baileys) ---
 async function handleQRMessage(sock, msg, instanceId) {
-    if (!msg.message || msg.key.remoteJid === 'status@broadcast' || msg.key.fromMe) return;
+    if (!msg.message || msg.key.fromMe) return;
 
-    // Log every message for debugging deaf/mute issues
-    console.log(`📩 [${instanceId}] Mensaje entrante de ${msg.key.remoteJid}:`, JSON.stringify(msg.message).substring(0, 100));
+    const remoteJid = msg.key.remoteJid;
+    if (!remoteJid || remoteJid === 'status@broadcast' || remoteJid.endsWith('@newsletter')) return;
+
+    // Filtro estricto: ignorar mensajes de protocolo, sincronización de historial, etc.
+    if (msg.message.protocolMessage || msg.message.historySyncNotification || msg.message.appStateSyncKeyShare) {
+        return; // Silenciosamente ignorar ruido del sistema
+    }
 
     const text = msg.message.conversation || msg.message.extendedTextMessage?.text || msg.message.imageMessage?.caption;
     const hasImage = !!(msg.message.imageMessage || msg.message.image);
 
+    // Solo loguear si parece ser un mensaje real destinado al bot
+    console.log(`📩 [${instanceId}] Mensaje entrante de ${remoteJid}:`, JSON.stringify(msg.message).substring(0, 80));
+
     if (hasImage && !text) {
-        const remoteJid = msg.key.remoteJid;
         await sock.sendMessage(remoteJid, { text: '¡Hola! Soy Alex. Lamentablemente, en este momento no puedo ver imágenes. ¿Podrías describirme con palabras lo que necesitas? Así podré ayudarte mejor 😊' });
         return;
     }
 
-    if (!text) return;
+    if (!text) return; // Ignore audio, stickers, docs for now if no text
 
     const config = clientConfigs.get(instanceId) || { companyName: 'ALEX IO' };
-    const remoteJid = msg.key.remoteJid;
 
     try {
         await sock.readMessages([msg.key]);
@@ -305,8 +311,9 @@ async function handleQRMessage(sock, msg, instanceId) {
         console.log(`🤖 [${config.companyName}] AI Result:`, !!result.text, 'Audio:', !!result.audioBuffer);
 
         if (result.text) {
-            await sock.sendMessage(remoteJid, { text: result.text });
-            console.log(`📤 [${config.companyName}] Respondido con ${result.trace.model}`);
+            console.log(`🧠 [${config.companyName}] Texto final a enviar:`, result.text.substring(0, 100));
+            const sentMsg = await sock.sendMessage(remoteJid, { text: result.text });
+            console.log(`✅ [${config.companyName}] Mensaje de texto enviado con éxito a: ${remoteJid} (ID: ${sentMsg?.key?.id})`);
 
             if (tenantId && isSupabaseEnabled) {
                 // Increment Usage
@@ -334,18 +341,18 @@ async function handleQRMessage(sock, msg, instanceId) {
                 // Delay to avoid race conditions between text and audio bubbles
                 await new Promise(resolve => setTimeout(resolve, 1500));
 
-                const sentMsg = await sock.sendMessage(remoteJid, {
+                const sentAudio = await sock.sendMessage(remoteJid, {
                     audio: result.audioBuffer,
                     mimetype: 'audio/ogg; codecs=opus', // Reverted to safer ogg
                     ptt: true // Send as voice note (push-to-talk style)
                 });
-                console.log(`🔊 [${config.companyName}] Audio enviado con éxito (${result.audioBuffer.length} bytes). Msg ID: ${sentMsg?.key?.id}`);
+                console.log(`🔊 [${config.companyName}] Audio enviado con éxito a: ${remoteJid} (ID: ${sentAudio?.key?.id})`);
             } catch (audioErr) {
                 console.warn(`⚠️ [${config.companyName}] No se pudo enviar audio:`, audioErr.message);
             }
         }
     } catch (err) {
-        console.error('❌ Error handling message:', err.message);
+        console.error(`❌ [${instanceId}] Error handling message:`, err.message);
     }
 }
 
