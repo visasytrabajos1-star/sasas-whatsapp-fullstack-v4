@@ -2,14 +2,15 @@ const express = require('express');
 const router = express.Router();
 const paymentService = require('../services/paymentService');
 const cryptoService = require('../services/cryptoPaymentService');
+const { supabase } = require('../services/supabaseClient');
 
 // --- STRIPE ROUTES ---
 
 // Crear sesión de pago Stripe
 router.post('/stripe/checkout', async (req, res) => {
     try {
-        const { email, plan } = req.body; // plan: STARTER, PRO, ENTERPRISE
-        
+        const { email, plan, tenantId } = req.body; // plan: STARTER, PRO, ENTERPRISE
+
         const PRICES = {
             'STARTER': process.env.STRIPE_PRICE_STARTER,
             'PRO': process.env.STRIPE_PRICE_PRO,
@@ -23,7 +24,8 @@ router.post('/stripe/checkout', async (req, res) => {
             email,
             priceId,
             `${process.env.FRONTEND_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
-            `${process.env.FRONTEND_URL}/pricing`
+            `${process.env.FRONTEND_URL}/pricing`,
+            { plan, tenantId: tenantId || email }
         );
 
         res.json({ url: session.url });
@@ -33,22 +35,44 @@ router.post('/stripe/checkout', async (req, res) => {
 });
 
 // Webhook de Stripe
-router.post('/stripe/webhook', express.raw({type: 'application/json'}), async (req, res) => {
+router.post('/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
     const sig = req.headers['stripe-signature'];
-    
+
     try {
         const event = paymentService.constructWebhookEvent(req.body, sig);
 
         // Manejar eventos
-        switch (event.type) {
-            case 'checkout.session.completed':
-                // Activar suscripción en DB
-                console.log('✅ Pago completado:', event.data.object);
-                break;
-            case 'customer.subscription.deleted':
-                // Desactivar cuenta
-                console.log('❌ Suscripción cancelada');
-                break;
+        if (event.type === 'checkout.session.completed' || event.type === 'invoice.payment_succeeded') {
+            const dataObject = event.data.object;
+            const metadata = dataObject.metadata || {};
+            const plan = metadata.plan;
+            const tenantId = metadata.tenantId || dataObject.customer_email;
+
+            if (tenantId && plan && supabase) {
+                const planLimits = { 'STARTER': 1000, 'PRO': 5000, 'ENTERPRISE': 20000 };
+                const newLimit = planLimits[plan] || 500;
+
+                try {
+                    // Update usage limits automatically
+                    await supabase.from('tenant_usage_metrics')
+                        .upsert({ tenant_id: tenantId, plan_limit: newLimit, updated_at: new Date().toISOString() })
+                        .select();
+
+                    // Update user profile if exists
+                    await supabase.from('profiles')
+                        .update({ role: plan.toLowerCase(), updated_at: new Date().toISOString() })
+                        .eq('email', tenantId); // Assumes email is often used as tenantId
+
+                    console.log(`✅ [Stripe] Suscripción activada para ${tenantId}. Plan: ${plan}, Límite: ${newLimit}`);
+                } catch (dbErr) {
+                    console.error(`⚠️ [Stripe DB Update Error]:`, dbErr.message);
+                }
+            } else {
+                console.log('✅ Pago completado (sin tenant tracking):', event.data.object.id);
+            }
+        } else if (event.type === 'customer.subscription.deleted') {
+            // Desactivar cuenta
+            console.log('❌ Suscripción cancelada');
         }
 
         res.json({ received: true });

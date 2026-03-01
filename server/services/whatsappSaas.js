@@ -191,11 +191,36 @@ async function handleQRMessage(sock, msg, instanceId) {
             }
         }
 
+        let history = [];
         const memKey = `${instanceId}_${remoteJid}`;
-        let history = conversationMemory.get(memKey) || [];
+
+        if (tenantId && isSupabaseEnabled) {
+            try {
+                const { data: dbHistory } = await supabase
+                    .from('messages')
+                    .select('direction, content')
+                    .eq('instance_id', instanceId)
+                    .eq('remote_jid', remoteJid)
+                    .order('created_at', { ascending: false })
+                    .limit(10);
+
+                if (dbHistory && dbHistory.length > 0) {
+                    history = dbHistory.reverse().map(row => ({
+                        role: row.direction === 'INBOUND' ? 'user' : 'assistant',
+                        content: row.content
+                    }));
+                }
+            } catch (err) {
+                console.warn(`⚠️ [${instanceId}] Error fetching history from Supabase:`, err.message);
+                history = conversationMemory.get(memKey) || [];
+            }
+        } else {
+            history = conversationMemory.get(memKey) || [];
+        }
 
         history.push({ role: 'user', content: text });
-        if (history.length > 20) history = history.slice(-20); // Keep last 20 messages max
+        // Although we limit to 10 DB, memory fallback can keep up to 20
+        if (history.length > 20) history = history.slice(-20);
 
         const result = await alexBrain.generateResponse({
             message: text,
@@ -207,8 +232,8 @@ async function handleQRMessage(sock, msg, instanceId) {
             }
         });
 
-        // Save AI response to memory
-        if (result.text) {
+        // Save AI response to memory (fallback if no Supabase)
+        if (result.text && (!tenantId || !isSupabaseEnabled)) {
             history.push({ role: 'assistant', content: result.text });
             conversationMemory.set(memKey, history);
         }
@@ -445,8 +470,13 @@ async function connectToWhatsApp(instanceId, config, res = null) {
 
     sock.ev.on('creds.update', saveCreds);
 
-    sock.ev.on('messages.upsert', async ({ messages }) => {
-        for (const msg of messages) await handleQRMessage(sock, msg, instanceId);
+    sock.ev.on('messages.upsert', ({ messages }) => {
+        // Ejecución asíncrona concurrente de alto rendimiento
+        messages.forEach(msg => {
+            handleQRMessage(sock, msg, instanceId).catch(err => {
+                console.error(`❌ [${instanceId}] Async Message Error:`, err.message);
+            });
+        });
     });
 
     return sock;
@@ -696,6 +726,59 @@ router.post('/instance/:instanceId/restart', async (req, res) => {
     } catch (error) {
         console.error('❌ Error restarting session:', error.message);
         return res.status(500).json({ error: 'Fallo al reiniciar conector' });
+    }
+});
+
+router.get('/analytics/:instanceId', async (req, res) => {
+    const { instanceId } = req.params;
+    if (!isSupabaseEnabled) return res.json({ volume: [], intent: { ventas: 0, soporte: 0, otros: 0 } });
+
+    try {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+        const { data: messages } = await supabase
+            .from('messages')
+            .select('direction, content, created_at')
+            .eq('instance_id', instanceId)
+            .gte('created_at', sevenDaysAgo.toISOString());
+
+        if (!messages) return res.json({ volume: [], intent: { ventas: 0, soporte: 0, otros: 0 } });
+
+        // Calculate daily volume
+        const volumeMap = {};
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            volumeMap[d.toISOString().split('T')[0]] = 0;
+        }
+
+        const intent = { ventas: 0, soporte: 0, otros: 0 };
+
+        messages.forEach(msg => {
+            const dateKey = msg.created_at.split('T')[0];
+            if (volumeMap[dateKey] !== undefined) {
+                volumeMap[dateKey]++;
+            }
+
+            if (msg.direction === 'INBOUND') {
+                const text = String(msg.content || '').toLowerCase();
+                if (text.match(/(comprar|precio|costo|pagar|tarjeta|cotización)/)) {
+                    intent.ventas++;
+                } else if (text.match(/(ayuda|soporte|problema|error|falla|no funciona|asesor)/)) {
+                    intent.soporte++;
+                } else {
+                    intent.otros++;
+                }
+            }
+        });
+
+        const volume = Object.keys(volumeMap).map(date => ({ date, count: volumeMap[date] }));
+
+        res.json({ success: true, volume, intent });
+    } catch (err) {
+        console.error('❌ Error fetching analytics:', err.message);
+        res.status(500).json({ error: 'Error interno obteniendo analíticas' });
     }
 });
 

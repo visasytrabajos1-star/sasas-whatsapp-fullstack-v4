@@ -95,3 +95,17 @@ CREATE TABLE IF NOT EXISTS public.messages (
 
 CREATE INDEX IF NOT EXISTS idx_messages_instance_jid ON public.messages (instance_id, remote_jid);
 CREATE INDEX IF NOT EXISTS idx_messages_tenant ON public.messages (tenant_id);
+
+-- ENABLE RLS (Row Level Security) ON MESSAGES
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+
+-- Allow authenticated users to view only their tenant logs
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE tablename = 'messages' AND policyname = 'Users can view their own tenant messages'
+    ) THEN
+        CREATE POLICY "Users can view their own tenant messages" ON public.messages
+            FOR SELECT USING (tenant_id = auth.uid()::text OR auth.uid() IN (SELECT id FROM public.app_users WHERE tenant_id = messages.tenant_id));
+    END IF;
+END $$;

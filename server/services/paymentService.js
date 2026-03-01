@@ -19,7 +19,7 @@ const PRICES = {
 
 class PaymentService {
     // Crear sesión de pago Stripe
-    async createCheckoutSession(userEmail, priceId, successUrl, cancelUrl) {
+    async createCheckoutSession(userEmail, priceId, successUrl, cancelUrl, customMetadata = {}) {
         try {
             const session = await getStripe().checkout.sessions.create({
                 payment_method_types: ['card'],
@@ -34,7 +34,8 @@ class PaymentService {
                 success_url: successUrl,
                 cancel_url: cancelUrl,
                 metadata: {
-                    platform: 'ALEX_IO'
+                    platform: 'ALEX_IO',
+                    ...customMetadata
                 }
             });
             return session;

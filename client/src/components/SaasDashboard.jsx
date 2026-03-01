@@ -66,6 +66,8 @@ function SaasDashboard() {
   const [promptVersions, setPromptVersions] = useState([]);
   const [loadingPromptVersions, setLoadingPromptVersions] = useState(false);
   const [promotingVersionId, setPromotingVersionId] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [newBotName, setNewBotName] = useState('');
   const [newBotProvider, setNewBotProvider] = useState('baileys');
   const [configDraft, setConfigDraft] = useState({
@@ -89,9 +91,30 @@ function SaasDashboard() {
   }, []);
 
   useEffect(() => {
-    if (selected?.instanceId) fetchPromptVersions(selected.instanceId);
-    else setPromptVersions([]);
+    if (selected?.instanceId) {
+      fetchPromptVersions(selected.instanceId);
+      fetchAnalytics(selected.instanceId);
+    } else {
+      setPromptVersions([]);
+      setAnalytics(null);
+    }
   }, [selected?.instanceId]);
+
+  const fetchAnalytics = async (instanceId) => {
+    setLoadingAnalytics(true);
+    try {
+      const { response, data } = await fetchJsonWithApiFallback(`/api/saas/analytics/${instanceId}`, {
+        headers: { ...getAuthHeaders() }
+      });
+      if (response.ok && data.success) {
+        setAnalytics(data);
+      }
+    } catch (e) {
+      console.error("Error fetching analytics:", e);
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  };
 
   const fetchInstances = async () => {
     setLoadingInstances(true);
@@ -579,9 +602,14 @@ function SaasDashboard() {
 
                   <div>
                     <label className="block text-sm text-slate-400 mb-1">Prompt Personalizado (Cerebro AI)</label>
+                    <div className="flex gap-2 mb-2 pb-2 border-b border-slate-700/50">
+                      <button onClick={() => setConfigDraft(p => ({ ...p, customPrompt: 'Eres un VENDEDOR EXPERTO altamente persuasivo. Tu meta es calificar al usuario y cerrar ventas. Sé dinámico y responde a objeciones.' }))} className="text-[10px] bg-indigo-900/40 hover:bg-indigo-800 text-indigo-300 px-2 py-1 rounded border border-indigo-700/50 uppercase tracking-wide font-bold transition-colors">🎯 Vendedor (Sales)</button>
+                      <button onClick={() => setConfigDraft(p => ({ ...p, customPrompt: 'Eres un agente de SOPORTE TÉCNICO paciente y resolutivo. Solicita el número de ticket y guía paso a paso al usuario.' }))} className="text-[10px] bg-teal-900/40 hover:bg-teal-800 text-teal-300 px-2 py-1 rounded border border-teal-700/50 uppercase tracking-wide font-bold transition-colors">🎧 Soporte (Support)</button>
+                      <button onClick={() => setConfigDraft(p => ({ ...p, customPrompt: 'Eres un ASISTENTE MÉDICO. Tu trabajo es agendar citas para la clínica. Pregunta por síntomas de manera empática pero no des diagnósticos definitivos.' }))} className="text-[10px] bg-rose-900/40 hover:bg-rose-800 text-rose-300 px-2 py-1 rounded border border-rose-700/50 uppercase tracking-wide font-bold transition-colors">⚕️ Salud (Health)</button>
+                    </div>
                     <div className="flex gap-2 mb-1">
-                      <button onClick={() => setShowWizard(true)} className="flex items-center gap-1 text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-1 rounded-full font-bold transition-all">
-                        <Wand2 size={12} /> Asistente IA
+                      <button onClick={() => setShowWizard(true)} className="flex items-center gap-1 text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-1 rounded-full font-bold transition-all mt-1">
+                        <Wand2 size={12} /> Asistente Creador IA
                       </button>
                     </div>
                     <textarea className="w-full bg-slate-900 border border-slate-700 rounded p-2 h-32" value={configDraft.customPrompt} onChange={(e) => setConfigDraft((prev) => ({ ...prev, customPrompt: e.target.value }))} />
@@ -705,6 +733,43 @@ function SaasDashboard() {
               </div>
 
               <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 h-full flex flex-col">
+                {analytics && (
+                  <div className="mb-6 p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                    <h3 className="text-sm font-bold mb-3 text-slate-300 flex items-center gap-2"><Activity size={16} className="text-blue-400" /> Analítica de Intenciones (7 Días)</h3>
+                    <div className="grid grid-cols-3 gap-2 mb-4">
+                      <div className="bg-emerald-900/20 border border-emerald-800/30 p-2 rounded text-center">
+                        <p className="text-[10px] text-emerald-400 uppercase tracking-widest">Ventas</p>
+                        <p className="text-xl font-bold text-white">{analytics.intent.ventas}</p>
+                      </div>
+                      <div className="bg-amber-900/20 border border-amber-800/30 p-2 rounded text-center">
+                        <p className="text-[10px] text-amber-400 uppercase tracking-widest">Soporte</p>
+                        <p className="text-xl font-bold text-white">{analytics.intent.soporte}</p>
+                      </div>
+                      <div className="bg-slate-800/50 border border-slate-700/50 p-2 rounded text-center">
+                        <p className="text-[10px] text-slate-400 uppercase tracking-widest">Otros</p>
+                        <p className="text-xl font-bold text-white">{analytics.intent.otros}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-2 font-bold">Volumen de Mensajes</p>
+                      <div className="flex items-end gap-1 h-20 opacity-80">
+                        {analytics.volume.map((vol, idx) => {
+                          const maxVol = Math.max(...analytics.volume.map(v => v.count), 1);
+                          const heightPct = (vol.count / maxVol) * 100;
+                          return (
+                            <div key={idx} className="flex-1 flex flex-col items-center gap-1 group">
+                              <div className="w-full bg-blue-500/80 rounded-t relative group-hover:bg-blue-400 transition-colors" style={{ height: `${Math.max(heightPct, 5)}%` }}>
+                                <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[9px] text-white opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 px-1 py-0.5 rounded">{vol.count}</span>
+                              </div>
+                              <span className="text-[8px] text-slate-500">{vol.date.split('-')[2]}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Activity size={20} className="text-green-500" /> Actividad Reciente</h3>
                 <div className="flex-1 overflow-auto">
                   <div className="bg-slate-900 p-4 rounded border border-slate-800 text-sm">
