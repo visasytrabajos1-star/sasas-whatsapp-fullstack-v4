@@ -856,7 +856,16 @@ router.get('/superadmin/clients', async (req, res) => {
         } catch (_) { }
 
         const { data: usage } = await supabase.from(usageTable).select('*');
-        const { data: bots } = await supabase.from(sessionsTable).select('instance_id, tenant_id, status, company_name');
+        const { data: bots } = await supabase.from(sessionsTable).select('instance_id, tenant_id, status, company_name, owner_email');
+
+        if (bots) {
+            bots.forEach(b => {
+                const email = b.owner_email || b.tenant_id;
+                if (!mergedUsers.find(u => u.email === email || u.id === b.tenant_id)) {
+                    mergedUsers.push({ id: b.tenant_id, email: email, plan: 'FREE', role: 'USER' });
+                }
+            });
+        }
 
         const allUsers = mergedUsers;
         const clients = allUsers.map(u => {

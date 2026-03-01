@@ -4,7 +4,7 @@ import { Shield, Activity, Settings, Smartphone, Plus, Loader, AlertTriangle, Ch
 import PromptWizard from './PromptWizard';
 import { fetchJsonWithApiFallback, getLastResolvedApiBase, getPreferredApiBase, getAuthHeaders } from '../api';
 
-const VERSION = 'v2.0.4.16';
+const VERSION = 'v2.0.4.17';
 
 const PROVIDERS = [
   { value: 'baileys', label: 'Baileys (QR)' },
