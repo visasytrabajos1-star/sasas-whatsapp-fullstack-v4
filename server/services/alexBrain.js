@@ -252,9 +252,9 @@ async function transcribeAudio(audioBuffer) {
         const transcription = await openai.audio.transcriptions.create({
             file: fs.createReadStream(tmpFilePath),
             model: 'whisper-1',
-            response_format: 'text'
+            response_format: 'text' // Returns a raw string directly
         });
-        return transcription;
+        return { text: transcription };
     } catch (err) {
         console.error('❌ Error en STT Whisper:', err);
         throw err;

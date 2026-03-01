@@ -167,7 +167,7 @@ async function handleQRMessage(sock, msg, instanceId) {
 
             console.log(`🎙️ [${instanceId}] Transcribiendo nota de voz (Whisper)...`);
             const transcription = await alexBrain.transcribeAudio(buffer);
-            text = transcription.text;
+            text = transcription.text || transcription; // Fallback string handling
             console.log(`📝 [${instanceId}] Transcripción Whisper: "${text}"`);
         } catch (err) {
             console.error(`❌ [${instanceId}] STT Error:`, err.message);
@@ -391,7 +391,13 @@ async function connectToWhatsApp(instanceId, config, res = null) {
         logger: pino({ level: 'fatal' }),
         browser: Browsers ? Browsers.ubuntu('Chrome') : ['Ubuntu', 'Chrome', '22.0'],
         connectTimeoutMs: 60000,
-        keepAliveIntervalMs: 10000
+        keepAliveIntervalMs: 10000,
+        getMessage: async (key) => {
+            // Needed to prevent Bad MAC crashes during decryption of media/audio
+            return {
+                conversation: 'Message decryption failed locally.'
+            };
+        }
     });
 
     const previous = activeSessions.get(instanceId);
@@ -432,8 +438,8 @@ async function connectToWhatsApp(instanceId, config, res = null) {
                 qr_code: null
             }).catch(() => null);
 
-            // Permanent errors that should NOT trigger reconnection
-            const FATAL_CODES = [401, 403, 405, 406, 409, 410, 440];
+            // Permanent errors that should NOT trigger reconnection (Excluded 401 because it can be temporary MD sync issue)
+            const FATAL_CODES = [403, 405, 406, 409, 410, 440];
             const isFatal = FATAL_CODES.includes(closeCode);
             const isLoggedOut = closeCode === DisconnectReason.loggedOut;
             const shouldReconnect = !isFatal && !isLoggedOut;
