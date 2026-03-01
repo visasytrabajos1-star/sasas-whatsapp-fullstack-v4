@@ -615,6 +615,31 @@ router.post('/support-chat', async (req, res) => {
             }
         });
 
+        // Guardar logs de soporte interno para análisis de producto
+        if (isSupabaseEnabled) {
+            const tenantId = req.tenant?.tenantId || req.tenant?.email || 'unknown_tenant';
+            const logId = crypto.randomUUID(); // Optional deduplication or grouping id
+
+            await supabase.from('messages').insert([
+                {
+                    instance_id: 'ALEX_SUPPORT_INTERNAL',
+                    tenant_id: tenantId,
+                    remote_jid: tenantId, // Map tenant as the remote entity
+                    direction: 'INBOUND',
+                    message_type: 'support_query',
+                    content: message
+                },
+                {
+                    instance_id: 'ALEX_SUPPORT_INTERNAL',
+                    tenant_id: tenantId,
+                    remote_jid: tenantId,
+                    direction: 'OUTBOUND',
+                    message_type: 'support_response',
+                    content: result.text
+                }
+            ]).catch(err => console.warn(`⚠️ Error logging support chat:`, err.message));
+        }
+
         res.json({ success: true, text: result.text });
     } catch (err) {
         console.error('❌ Support Chat Error:', err);
