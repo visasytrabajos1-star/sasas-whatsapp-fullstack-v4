@@ -7,7 +7,7 @@ if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
     throw new Error('⛔ JWT_SECRET is required in production. Set it in your Render Dashboard environment variables.');
 }
 
-const resolveJwtSecret = () => JWT_SECRET || 'alex-io-dev-secret-2026';
+const getJwtSecret = () => JWT_SECRET || 'alex-io-dev-secret-2026';
 
 
 /**
@@ -55,7 +55,7 @@ const authenticateTenant = async (req, res, next) => {
         }
 
         // 2. Fallback to Local JWT
-        const decoded = jwt.verify(token, resolveJwtSecret());
+        const decoded = jwt.verify(token, getJwtSecret());
 
         // Inyectamos el tenant en el request para uso posterior
         req.tenant = {
@@ -115,5 +115,5 @@ module.exports = {
     authenticateTenant,
     requireRole,
     requirePlan,
-    JWT_SECRET: resolveJwtSecret()
+    getJwtSecret
 };

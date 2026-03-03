@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "node index.js"
+    "dev": "node index.js",
+    "lint": "node --check index.js middleware/auth.js services/whatsappSaas.js services/alexBrain.js",
+    "test": "node --test tests/*.test.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",

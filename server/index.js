@@ -74,7 +74,7 @@ global.responseCache = global.responseCache || new NodeCache({ stdTTL: 3600, che
 // --- AUTH ROUTES (Public) ---
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { JWT_SECRET } = require('./middleware/auth');
+const { getJwtSecret } = require('./middleware/auth');
 const { supabase, isSupabaseEnabled } = require('./services/supabaseClient');
 
 const ADMIN_EMAILS = ['visasytrabajos@gmail.com', 'admin@demo.com'];
@@ -89,7 +89,7 @@ const buildToken = (email, role) => {
             tenantId, email,
             plan: isAdmin ? 'ENTERPRISE' : 'PRO',
             role: isAdmin ? 'SUPERADMIN' : 'OWNER'
-        }, JWT_SECRET, { expiresIn: '7d' }),
+        }, getJwtSecret(), { expiresIn: '7d' }),
         tenantId,
         role: isAdmin ? 'SUPERADMIN' : 'OWNER'
     };
