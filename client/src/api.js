@@ -54,6 +54,25 @@ export const fetchWithApiFallback = async (path, options = {}) => {
       }
 
       lastResolvedApiBase = base;
+
+      // Auto-logout on auth failures (stale/invalid tokens)
+      if ((response.status === 401 || response.status === 403) && !path.includes('/api/auth/')) {
+        console.warn('🔒 Token rechazado por el backend (HTTP', response.status, '). Limpiando sesión...');
+        localStorage.removeItem('alex_io_token');
+        localStorage.removeItem('alex_io_role');
+        localStorage.removeItem('demo_email');
+        localStorage.removeItem('alex_io_tenant');
+        sessionStorage.removeItem('alex_io_token');
+        // Redirect to login (debounced to avoid loops)
+        if (!window.__alexLogoutRedirecting) {
+          window.__alexLogoutRedirecting = true;
+          setTimeout(() => {
+            window.location.hash = '#/login';
+            window.location.reload();
+          }, 100);
+        }
+      }
+
       return response;
     } catch (error) {
       clearTimeout(timeout);
