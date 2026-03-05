@@ -989,17 +989,45 @@ router.post('/instance/:instanceId/pause', (req, res) => {
     res.json({ success: true, instanceId, remoteJid, paused });
 });
 
-router.get('/status', (req, res) => {
+router.get('/status', async (req, res) => {
     const tenantId = req.tenant?.id;
     const isAdmin = req.tenant?.role === 'SUPERADMIN';
 
-    const allSessions = Array.from(sessionStatus.entries()).map(([instanceId, info]) => ({
+    let allSessions = Array.from(sessionStatus.entries()).map(([instanceId, info]) => ({
         instanceId,
         ...info,
-        tenantId: clientConfigs.get(instanceId)?.tenantId || null,
-        ownerEmail: clientConfigs.get(instanceId)?.ownerEmail || null,
+        tenantId: clientConfigs.get(instanceId)?.tenantId || info?.tenantId || null,
+        ownerEmail: clientConfigs.get(instanceId)?.ownerEmail || info?.ownerEmail || null,
         provider: info.provider || clientConfigs.get(instanceId)?.provider || 'baileys'
     }));
+
+    // Fallback: if in-memory is empty, query Supabase for this tenant's sessions
+    if (allSessions.length === 0 && isSupabaseEnabled) {
+        try {
+            const query = supabase.from(sessionsTable)
+                .select('instance_id,status,qr_code,updated_at,company_name,tenant_id,owner_email')
+                .order('updated_at', { ascending: false })
+                .limit(50);
+
+            if (!isAdmin && tenantId) {
+                query.eq('tenant_id', tenantId);
+            }
+
+            const { data } = await query;
+            allSessions = (data || []).map(row => ({
+                instanceId: row.instance_id,
+                status: row.status,
+                qr_code: row.qr_code,
+                updatedAt: row.updated_at,
+                companyName: row.company_name,
+                tenantId: row.tenant_id,
+                ownerEmail: row.owner_email,
+                provider: 'baileys'
+            }));
+        } catch (e) {
+            console.warn('⚠️ Supabase fallback for /status failed:', e.message);
+        }
+    }
 
     // Filter by tenant unless admin
     const sessions = isAdmin
