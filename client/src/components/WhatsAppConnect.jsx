@@ -9,11 +9,7 @@ const getSocketUrl = () => {
     if (import.meta.env.PROD) {
         if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
         if (typeof window !== 'undefined') {
-            const origin = window.location.origin;
-            if (origin.includes('whatsapp-fullstack-1')) {
-                return 'https://whatsapp-fullstack-gkm6.onrender.com';
-            }
-            return origin;
+            return window.location.origin;
         }
     }
     return import.meta.env.VITE_API_URL || 'http://localhost:3000';

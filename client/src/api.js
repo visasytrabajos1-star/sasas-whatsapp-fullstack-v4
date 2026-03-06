@@ -1,9 +1,9 @@
 const normalize = (url) => (url || '').replace(/\/$/, '');
 
-const RENDER_BACKEND_HINT = import.meta.env.VITE_RENDER_BACKEND_URL || 'https://whatsapp-fullstack-gkm6.onrender.com';
+const RENDER_BACKEND_HINT = import.meta.env.VITE_RENDER_BACKEND_URL || 'https://saas-whatsapp-zhsu.onrender.com';
 const DEFAULT_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS || 45000);
-const FORCE_PRIMARY_BACKEND = import.meta.env.VITE_FORCE_PRIMARY_BACKEND !== 'false';
-const ALLOW_ORIGIN_FALLBACK = import.meta.env.VITE_ALLOW_ORIGIN_FALLBACK === 'true';
+const FORCE_PRIMARY_BACKEND = import.meta.env.VITE_FORCE_PRIMARY_BACKEND === 'true';
+const ALLOW_ORIGIN_FALLBACK = import.meta.env.VITE_ALLOW_ORIGIN_FALLBACK !== 'false';
 let lastResolvedApiBase = null;
 
 const getApiBases = () => {
