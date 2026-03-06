@@ -65,44 +65,54 @@ export default function Login() {
                     'success'
                 );
             } else {
-                // LOGIN — Email + contraseña via Supabase (valida credenciales)
+                // LOGIN — Email + contraseña via Supabase (valida credenciales nativamente)
                 const normalizedEmail = email.trim().toLowerCase();
                 const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
                 if (error) throw error;
 
-                // Obtener JWT del backend (firmado con JWT_SECRET, siempre validable por el middleware)
+                if (!data.session) {
+                    throw new Error('No se pudo establecer sesión con Supabase.');
+                }
+
+                // Obtener JWT del backend mediante intercambio de token de Supabase
                 let backendToken = null;
                 let backendRole = data.user?.user_metadata?.role || 'OWNER';
+                let backendTenant = data.user?.id;
+
                 try {
                     const { getPreferredApiBase } = await import('../api.js');
                     const apiBase = getPreferredApiBase();
-                    const resp = await fetch(`${apiBase}/api/auth/login`, {
+                    const resp = await fetch(`${apiBase}/api/auth/session`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email: normalizedEmail, password })
+                        body: JSON.stringify({ access_token: data.session.access_token })
                     });
+
                     if (resp.ok) {
                         const backendData = await resp.json();
                         backendToken = backendData.token;
                         backendRole = backendData.role || backendRole;
+                        backendTenant = backendData.tenantId || backendTenant;
+                    } else {
+                        const errData = await resp.json();
+                        throw new Error(errData.error || 'Fallo en la validación del backend');
                     }
                 } catch (backendErr) {
-                    console.warn('⚠️ Backend /api/auth/login failed, falling back to Supabase token:', backendErr.message);
+                    console.error('❌ Backend Session Error:', backendErr.message);
+                    throw backendErr; // Obligatorio para Enterprise: el backend debe validar la sesión
                 }
 
-                // Priorizar el backend JWT; si falla, usar el token de Supabase como fallback
-                const finalToken = backendToken || data.session.access_token;
-
-                localStorage.setItem('alex_io_token', finalToken);
+                // Guardar solo el token firmado por nuestro backend (JWT_SECRET)
+                localStorage.setItem('alex_io_token', backendToken);
                 localStorage.setItem('demo_email', data.user.email);
                 localStorage.setItem('alex_io_role', backendRole);
+                localStorage.setItem('alex_io_tenant', backendTenant);
 
                 if (!rememberSession) {
-                    sessionStorage.setItem('alex_io_token', finalToken);
+                    sessionStorage.setItem('alex_io_token', backendToken);
                     localStorage.removeItem('alex_io_token');
                 }
 
-                // Navegar sin recargar la página (mantiene la sesión de Supabase en memoria)
                 navigate((backendRole === 'SUPERADMIN') ? '/superadmin' : '/dashboard');
             }
         } catch (error) {

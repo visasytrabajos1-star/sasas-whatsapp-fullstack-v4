@@ -81,107 +81,52 @@ const { supabase, isSupabaseEnabled } = require('./services/supabaseClient');
 
 const ADMIN_EMAILS = ['visasytrabajos@gmail.com', 'admin@demo.com'];
 
-const buildToken = (email, role) => {
-    const isAdmin = ADMIN_EMAILS.includes(email.toLowerCase().trim()) || role === 'SUPERADMIN';
+const buildToken = (user) => {
+    const email = user.email;
+    const isAdmin = ADMIN_EMAILS.includes(email.toLowerCase().trim()) || user.user_metadata?.role === 'SUPERADMIN';
     const tenantId = isAdmin
         ? 'tenant_superadmin'
-        : `tenant_${Buffer.from(email).toString('base64').substring(0, 8)}`;
+        : user.id; // Use Supabase UUID as immutable tenantId
+
     return {
         token: jwt.sign({
-            tenantId, email,
-            plan: isAdmin ? 'ENTERPRISE' : 'PRO',
-            role: isAdmin ? 'SUPERADMIN' : 'OWNER'
+            tenantId,
+            email,
+            plan: user.user_metadata?.plan || (isAdmin ? 'ENTERPRISE' : 'PRO'),
+            role: isAdmin ? 'SUPERADMIN' : (user.user_metadata?.role || 'OWNER')
         }, getJwtSecret(), { expiresIn: '7d' }),
         tenantId,
-        role: isAdmin ? 'SUPERADMIN' : 'OWNER'
+        role: isAdmin ? 'SUPERADMIN' : (user.user_metadata?.role || 'OWNER')
     };
 };
 
-// POST /api/auth/register
-app.post('/api/auth/register', sensitiveLimiter, async (req, res) => {
-    const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'Email y contraseña son requeridos' });
-    if (password.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+// POST /api/auth/session
+// Exchange a Supabase access_token for a backend JWT
+app.post('/api/auth/session', sensitiveLimiter, async (req, res) => {
+    const { access_token } = req.body;
+    if (!access_token) return res.status(400).json({ error: 'Supabase access_token is required' });
+
+    if (!isSupabaseEnabled) {
+        return res.status(503).json({ error: 'Supabase connection is not available' });
+    }
 
     try {
-        const passwordHash = await bcrypt.hash(password, 10);
+        const { data: { user }, error } = await supabase.auth.getUser(access_token);
 
-        if (isSupabaseEnabled) {
-            // Check if user already exists
-            const { data: existing } = await supabase
-                .from('app_users')
-                .select('id')
-                .eq('email', email.toLowerCase().trim())
-                .single();
-
-            if (existing) return res.status(409).json({ error: 'Ya existe una cuenta con ese email' });
-
-            const { error } = await supabase
-                .from('app_users')
-                .insert({ email: email.toLowerCase().trim(), password_hash: passwordHash, plan: 'PRO', role: 'OWNER' });
-
-            if (error) throw error;
+        if (error || !user) {
+            return res.status(401).json({ error: 'Sesión de Supabase inválida o expirada' });
         }
 
-        const { token, tenantId, role } = buildToken(email);
-        res.json({ token, tenantId, role, message: '¡Cuenta creada exitosamente!' });
+        const { token, tenantId, role } = buildToken(user);
+        res.json({ token, tenantId, role });
     } catch (err) {
-        console.error('Register error:', err.message);
-        res.status(500).json({ error: 'Error al crear la cuenta: ' + err.message });
+        console.error('Session exchange error:', err.message);
+        res.status(500).json({ error: 'Error al verificar sesión' });
     }
 });
 
-// POST /api/auth/login
-app.post('/api/auth/login', sensitiveLimiter, async (req, res) => {
-    const { email, password } = req.body;
-    if (!email) return res.status(400).json({ error: 'Email es requerido' });
-
-    try {
-        if (isSupabaseEnabled && password) {
-            const { data: user, error: queryError } = await supabase
-                .from('app_users')
-                .select('password_hash, role, plan')
-                .eq('email', email.toLowerCase().trim())
-                .single();
-
-            if (queryError) {
-                console.error(`⚠️ Login Supabase query error for ${email}:`, queryError.message);
-                // If user simply not found, return 401; for other errors, return 500
-                if (queryError.code === 'PGRST116') {
-                    return res.status(401).json({ error: 'Email o contraseña incorrectos' });
-                }
-                return res.status(500).json({ error: 'Error de base de datos al verificar credenciales' });
-            }
-
-            if (!user) return res.status(401).json({ error: 'Email o contraseña incorrectos' });
-
-            const valid = await bcrypt.compare(password, user.password_hash);
-            if (!valid) return res.status(401).json({ error: 'Email o contraseña incorrectos' });
-
-            const { token, tenantId, role } = buildToken(email, user.role);
-            return res.json({ token, tenantId, role });
-        }
-
-        // Log why we reached mock auth
-        if (!isSupabaseEnabled) console.warn(`⚠️ Login mock fallback: Supabase disabled (email: ${email})`);
-        else if (!password) console.warn(`⚠️ Login mock fallback: no password provided (email: ${email})`);
-
-        // Fallback: passwordless mock auth (blocked in production by default)
-        const ALLOW_MOCK_AUTH = process.env.ALLOW_MOCK_AUTH === 'true';
-        if (process.env.NODE_ENV === 'production' && !ALLOW_MOCK_AUTH) {
-            return res.status(503).json({
-                error: 'Autenticación mock deshabilitada en producción. Use email + contraseña.',
-                code: 'MOCK_AUTH_DISABLED'
-            });
-        }
-
-        const { token, tenantId, role } = buildToken(email);
-        res.json({ token, tenantId, role, mockAuth: true });
-    } catch (err) {
-        console.error('Login error:', err.message);
-        res.status(500).json({ error: 'Error al iniciar sesión' });
-    }
-});
+// Legacy login/register removed to enforce Supabase Auth.
+// Use Supabase Client SDK in frontend to login/signup.
 
 // --- SERVE FRONTEND (Static files from client build) ---
 const path = require('path');

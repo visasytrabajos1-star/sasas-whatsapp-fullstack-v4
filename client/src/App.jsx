@@ -97,17 +97,9 @@ function App() {
           clearTimeout(safetyTimer);
           const s = data?.session;
           if (s) {
-            try {
-              if (localStorage.getItem('alex_io_token')) {
-                localStorage.setItem('alex_io_token', s.access_token);
-              } else {
-                sessionStorage.setItem('alex_io_token', s.access_token);
-              }
-              localStorage.setItem('demo_email', s.user?.email || '');
-            } catch {
-              // no-op
-            }
-            finishLoading(s);
+            // Favor our custom backend JWT if it exists
+            const jwtSess = buildJwtSession();
+            finishLoading(jwtSess || s);
           } else {
             finishLoading(buildJwtSession());
           }
@@ -125,17 +117,10 @@ function App() {
     try {
       const result = supabase.auth.onAuthStateChange((_event, newSession) => {
         if (newSession) {
-          try {
-            if (localStorage.getItem('alex_io_token')) {
-              localStorage.setItem('alex_io_token', newSession.access_token);
-            } else {
-              sessionStorage.setItem('alex_io_token', newSession.access_token);
-            }
-            localStorage.setItem('demo_email', newSession.user?.email || '');
-          } catch {
-            // no-op
-          }
-          setSession(newSession);
+          // Verify if we have our backend token; if not, and we are not in Login, we might need exchange
+          // For now, just ensure we don't overwrite our good token with raw Supabase token
+          const jwtSess = buildJwtSession();
+          setSession(jwtSess || newSession);
         } else {
           setSession(buildJwtSession());
         }
