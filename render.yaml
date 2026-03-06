@@ -1,0 +1,50 @@
+services:
+  - type: web
+    name: whatsapp-fullstack
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: cd server && npm install && cd ../client && npm install && VITE_RENDER_BACKEND_URL=https://whatsapp-fullstack-gkm6.onrender.com VITE_API_URL=https://whatsapp-fullstack-gkm6.onrender.com npm run build && cd ../server
+    startCommand: cd server && node index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: WHATSAPP_MAX_RECONNECT_ATTEMPTS
+        value: "8"
+      - key: WHATSAPP_SESSIONS_TABLE
+        value: "whatsapp_sessions"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: WHATSAPP_WEBHOOK_VERIFY_TOKEN
+        value: alex_prod_safe_token_2026
+
+  - type: static
+    name: whatsapp-fullstack-1
+    env: static
+    region: oregon
+    rootDir: client
+    buildCommand: npm install && npm run build
+    publishDir: build
+    envVars:
+      - key: VITE_API_URL
+        value: https://whatsapp-fullstack-gkm6.onrender.com
+      - key: VITE_API_TIMEOUT_MS
+        value: "20000"
+      - key: VITE_RENDER_BACKEND_URL
+        value: https://whatsapp-fullstack-gkm6.onrender.com
+      - key: VITE_SUPABASE_URL
+        value: https://ygsmooajrqldzdtcukfd.supabase.co
+      - key: VITE_SUPABASE_ANON_KEY
+        value: sb_publishable_X3xx0LH-LOLJf7q5M52yVQ_JUq3AzT8

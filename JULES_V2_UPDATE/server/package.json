@@ -1,0 +1,30 @@
+{
+  "name": "alex-io-saas-server",
+  "version": "2.1.0",
+  "description": "ALEX IO SaaS Backend - Optimized for 5000+ users",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "@supabase/supabase-js": "^2.97.0",
+    "@whiskeysockets/baileys": "^6.6.0",
+    "axios": "^1.6.5",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "ioredis": "^5.3.2",
+    "jsonwebtoken": "^9.0.2",
+    "node-cache": "^5.1.2",
+    "openai": "^4.24.1",
+    "pino": "^8.17.2",
+    "qrcode": "^1.5.3",
+    "stripe": "^14.14.0",
+    "uuid": "^9.0.1",
+    "zod": "^3.22.4"
+  }
+}

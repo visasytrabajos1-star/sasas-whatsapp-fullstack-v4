@@ -1,0 +1,16 @@
+{
+    "dashboard": {
+        "welcome": "Bienvenido",
+        "connect": "Conectar WhatsApp",
+        "connected": "Conectado como",
+        "disconnect": "Desconectar",
+        "botConfig": "Configuración del Bot",
+        "refresh": "Actualizar",
+        "saving": "Guardando...",
+        "saveConfig": "Guardar Configuración",
+        "saved": "¡Guardado con éxito!",
+        "myBots": "Mis Bots",
+        "createNewBot": "Añadir Nuevo",
+        "connectedAs": "Online vía"
+    }
+}
