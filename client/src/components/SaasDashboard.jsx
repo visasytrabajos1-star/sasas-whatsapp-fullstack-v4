@@ -13,9 +13,13 @@ import { fetchJsonWithApiFallback, getLastResolvedApiBase, getPreferredApiBase, 
 const VERSION = 'v2.0.4.17';
 
 const PROVIDERS = [
-  { value: 'baileys', label: 'Baileys (QR)' },
-  { value: 'meta', label: 'Meta Cloud API' },
-  { value: '360dialog', label: '360Dialog' }
+  { value: 'baileys', label: 'WhatsApp QR Code' },
+  { value: 'meta', label: 'WhatsApp API Cloud' },
+  { value: 'coexistence', label: 'WhatsApp API Coexistencia' },
+  { value: 'facebook', label: 'Facebook' },
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'tiktok', label: 'TikTok' },
+  { value: 'webchat', label: 'Web Chat' }
 ];
 
 // --- Error Boundary to prevent full page crashes ---
@@ -645,12 +649,30 @@ function SaasDashboard() {
               </button>
             ))}
           </div>
-          <button
-            onClick={() => setShowNewBotModal(true)}
-            className="w-full mt-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-xl border border-slate-700 flex items-center justify-center gap-2"
-          >
-            <Plus size={20} /> {t('dashboard.createNewBot', 'Añadir Nuevo')}
-          </button>
+          <div className="relative group w-full mt-4">
+            <button
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl border border-blue-500/30 flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"
+            >
+              <Plus size={20} /> AGREGAR
+            </button>
+            <div className="absolute bottom-full left-0 w-full mb-2 hidden group-hover:block animate-fade-in z-50">
+              <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-2xl">
+                {PROVIDERS.map((p) => (
+                  <button
+                    key={p.value}
+                    onClick={() => {
+                      setNewBotProvider(p.value);
+                      setShowNewBotModal(true);
+                    }}
+                    className="w-full text-left p-3 hover:bg-slate-700 text-xs flex items-center gap-3 border-b border-slate-700/50 last:border-0 transition-colors"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-blue-500" />
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </aside>
 
         <div className="flex-1 p-6 overflow-hidden flex flex-col">
@@ -699,6 +721,18 @@ function SaasDashboard() {
                       </div>
 
                       <div>
+                        <label className="block text-sm text-slate-400 mb-1">Cerebro AI (Motor Primario)</label>
+                        <select
+                          className="w-full bg-slate-900 border border-slate-700 rounded p-2 mb-3"
+                          value={configDraft.engine || 'gemini'}
+                          onChange={(e) => setConfigDraft((prev) => ({ ...prev, engine: e.target.value }))}
+                        >
+                          <option value="gemini">Google Gemini 2.0 Flash</option>
+                          <option value="claude">Anthropic Claude 3.5 Sonnet</option>
+                          <option value="openai">OpenAI GPT-4o Mini</option>
+                          <option value="deepseek">DeepSeek V3</option>
+                        </select>
+
                         <label className="block text-sm text-slate-400 mb-1">Voz del Bot (IA)</label>
                         <select className="w-full bg-slate-900 border border-slate-700 rounded p-2" value={configDraft.voice || 'nova'} onChange={(e) => setConfigDraft((prev) => ({ ...prev, voice: e.target.value }))}>
                           <option value="nova">Nova (Femenina - Natural)</option>

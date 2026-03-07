@@ -16,7 +16,7 @@ const KEY_COOLDOWN_MS = 3600000; // 1 hour
 const OPENAI_KEY = (process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || '').trim();
 const GEMINI_KEY = (process.env.GEMINI_API_KEY || process.env.GENAI_API_KEY || process.env.GOOGLE_API_KEY || '').trim();
 const DEEPSEEK_KEY = (process.env.DEEPSEEK_API_KEY || '').trim();
-const ANTHROPIC_KEY = (process.env.ANTHROPIC_API_KEY || '').trim(); // Para Shadow Audit
+const ANTHROPIC_KEY = (process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_KEY || '').trim();
 
 // --- UTILS ---
 
@@ -29,6 +29,7 @@ const openai = OPENAI_KEY ? new OpenAI({ apiKey: OPENAI_KEY }) : null;
 const mask = (key) => key ? `${key.substring(0, 7)}...${key.substring(key.length - 4)}` : 'MISSING';
 console.log(`🧠 [CASCADE] Inicializando Cerebro:`);
 console.log(`   - Gemini: ${mask(GEMINI_KEY)}`);
+console.log(`   - Claude: ${mask(ANTHROPIC_KEY)}`);
 console.log(`   - OpenAI: ${mask(OPENAI_KEY)} (CRÍTICO PARA VOZ Y FALLBACK)`);
 console.log(`   - DeepSeek: ${mask(DEEPSEEK_KEY)}`);
 
@@ -136,8 +137,39 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
         };
     }
 
+    // 0. CLAUDE (High priority if configured or premium)
+    if (ANTHROPIC_KEY && (botConfig.engine === 'claude' || !effectiveGeminiKey) && !deadKeys.has('CLAUDE')) {
+        try {
+            console.log(`🚀 [${botName}] Consultando Claude 3.5 Sonnet...`);
+            const claudeRes = await axios.post('https://api.anthropic.com/v1/messages', {
+                model: 'claude-3-5-sonnet-20241022',
+                max_tokens: 1000,
+                temperature: 0.7,
+                system: systemPrompt,
+                messages: [
+                    ...(history || []).slice(-6).map(h => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content || h.text })),
+                    { role: 'user', content: normalizedUserMsg }
+                ]
+            }, {
+                headers: {
+                    'x-api-key': ANTHROPIC_KEY,
+                    'anthropic-version': '2023-06-01',
+                    'content-type': 'application/json'
+                },
+                timeout: 10000
+            });
+
+            if (claudeRes.data.content?.[0]?.text) {
+                responseText = claudeRes.data.content[0].text;
+                usedModel = 'claude-3-5-sonnet';
+            }
+        } catch (err) {
+            console.warn(`⚠️ [${botName}] Claude falló:`, err.message);
+        }
+    }
+
     // 1. GEMINI (AXIOS implementation for stability)
-    if (effectiveGeminiKey && effectiveGeminiKey.length > 20 && !deadKeys.has('GEMINI')) {
+    if (responseText === "" && effectiveGeminiKey && effectiveGeminiKey.length > 20 && !deadKeys.has('GEMINI')) {
         // Try multiple Gemini versions/models
         const gems = [
             { v: 'v1beta', m: 'gemini-2.0-flash' },

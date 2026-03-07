@@ -19,6 +19,11 @@ const getApiBases = () => {
     if (origin && !bases.includes(origin)) bases.push(origin);
   }
 
+  // Ensure RENDER_BACKEND_HINT is tried if it's not the primary
+  if (RENDER_BACKEND_HINT && !bases.includes(RENDER_BACKEND_HINT)) {
+    bases.push(RENDER_BACKEND_HINT);
+  }
+
   return bases;
 };
 
