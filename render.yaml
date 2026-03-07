@@ -1,18 +1,16 @@
 services:
   - type: web
-    name: whatsapp-fullstack
+    name: alex-io-v4-backend
     env: node
     region: oregon
     plan: free
-    buildCommand: cd server && npm install && cd ../client && npm install && VITE_RENDER_BACKEND_URL=https://whatsapp-fullstack-gkm6.onrender.com VITE_API_URL=https://whatsapp-fullstack-gkm6.onrender.com npm run build && cd ../server
+    buildCommand: cd server && npm install && cd ../client && npm install && npm run build
     startCommand: cd server && node index.js
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
-      - key: WHATSAPP_MAX_RECONNECT_ATTEMPTS
-        value: "8"
       - key: WHATSAPP_SESSIONS_TABLE
         value: "whatsapp_sessions"
       - key: SUPABASE_URL
@@ -21,17 +19,11 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: DEEPSEEK_API_KEY
-        sync: false
       - key: JWT_SECRET
         sync: false
-      - key: WHATSAPP_WEBHOOK_VERIFY_TOKEN
-        value: alex_prod_safe_token_2026
 
   - type: static
-    name: whatsapp-fullstack-1
+    name: alex-io-v4-frontend
     env: static
     region: oregon
     rootDir: client
@@ -39,11 +31,7 @@ services:
     publishDir: build
     envVars:
       - key: VITE_API_URL
-        value: https://whatsapp-fullstack-gkm6.onrender.com
-      - key: VITE_API_TIMEOUT_MS
-        value: "20000"
-      - key: VITE_RENDER_BACKEND_URL
-        value: https://whatsapp-fullstack-gkm6.onrender.com
+        value: https://alex-io-v4-backend.onrender.com
       - key: VITE_SUPABASE_URL
         value: https://ygsmooajrqldzdtcukfd.supabase.co
       - key: VITE_SUPABASE_ANON_KEY
