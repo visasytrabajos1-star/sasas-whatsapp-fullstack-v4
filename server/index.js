@@ -48,7 +48,29 @@ app.use(globalLimiter);
 app.use(helmet());
 
 // Middleware
-app.use(cors());
+const allowedOrigins = [
+    'https://alex-io-v4-frontend.onrender.com', // Explicit production URL
+    'http://localhost:5173',
+    'http://localhost:3000'
+];
+
+app.use(cors({
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl)
+        if (!origin) return callback(null, true);
+
+        // Match specific origins or check if it matches onrender.com subdomains
+        if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.onrender.com')) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
+
 const jsonParser = express.json();
 
 // Stripe requiere body crudo para validar firma de webhook.
