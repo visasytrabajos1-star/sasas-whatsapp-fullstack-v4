@@ -33,13 +33,10 @@ services:
     publishDir: build
     envVars:
       - key: VITE_API_URL
-        sync: false
-        placeholder: "https://your-backend-url.onrender.com"
+        value: https://alex-io-v4-backend.onrender.com
       - key: VITE_SUPABASE_URL
-        sync: false
-        placeholder: "https://your-project.supabase.co"
+        value: https://ygsmooajrqldzdtcukfd.supabase.co
       - key: VITE_SUPABASE_ANON_KEY
-        sync: false
-        placeholder: "eyJhbG..."
+        value: sb_publishable_X3xx0LH-LOLJf7q5M52yVQ_JUq3AzT8
       - key: VITE_API_TIMEOUT_MS
         value: "60000"

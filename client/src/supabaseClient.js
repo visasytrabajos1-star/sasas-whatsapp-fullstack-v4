@@ -8,9 +8,11 @@ const config = { supabaseUrl: null, supabaseKey: "TU_CLAVE_AQUI" };
 const cleanStr = (s) => (s || "").trim();
 
 // Hardcoded fallbacks (safe to expose — these are public Supabase credentials)
-// 1. Usar variables de entorno (OBLIGATORIO PARA PRODUCCIÓN)
-const supabaseUrl = cleanStr(import.meta.env.VITE_SUPABASE_URL) || '';
-const supabaseKey = cleanStr(import.meta.env.VITE_SUPABASE_ANON_KEY) || '';
+const SUPABASE_URL_FALLBACK = 'https://ygsmooajrqldzdtcukfd.supabase.co';
+const SUPABASE_KEY_FALLBACK = 'sb_publishable_X3xx0LH-LOLJf7q5M52yVQ_JUq3AzT8';
+
+const supabaseUrl = cleanStr(import.meta.env.VITE_SUPABASE_URL) || SUPABASE_URL_FALLBACK;
+const supabaseKey = cleanStr(import.meta.env.VITE_SUPABASE_ANON_KEY) || SUPABASE_KEY_FALLBACK;
 
 // ... debug helper ...
 

@@ -1,7 +1,7 @@
 const normalize = (url) => (url || '').replace(/\/$/, '');
 
-const RENDER_BACKEND_HINT = import.meta.env.VITE_RENDER_BACKEND_URL || '';
-const DEFAULT_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS || 60000); // 60s for Render wake-up
+const RENDER_BACKEND_HINT = import.meta.env.VITE_RENDER_BACKEND_URL || 'https://alex-io-v4-backend.onrender.com';
+const DEFAULT_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS || 60000);
 const FORCE_PRIMARY_BACKEND = import.meta.env.VITE_FORCE_PRIMARY_BACKEND === 'true';
 const ALLOW_ORIGIN_FALLBACK = import.meta.env.VITE_ALLOW_ORIGIN_FALLBACK !== 'false';
 let lastResolvedApiBase = null;
