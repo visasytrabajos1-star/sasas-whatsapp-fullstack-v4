@@ -17,6 +17,8 @@ const ragService = require('./ragService');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const upload = multer({ storage: multer.memoryStorage() });
+const { registerMetaConfig } = require('./metaService');
+const { registerTikTokConfig } = require('./tiktokService');
 
 const {
     savePromptVersion,
@@ -771,19 +773,28 @@ router.post('/connect', async (req, res) => {
     try {
         if (provider !== 'baileys') {
             clientConfigs.set(instanceId, config);
+
+            if (['meta', 'coexistence', 'facebook', 'instagram'].includes(provider)) {
+                registerMetaConfig(instanceId, config);
+            } else if (provider === 'tiktok') {
+                registerTikTokConfig(instanceId, config);
+            }
+
             await updateSessionStatus(instanceId, 'configured_cloud', {
                 companyName: cleanName,
                 provider,
                 qr_code: null
             });
 
+            const pMsg = ['meta', 'facebook', 'instagram', 'coexistence'].includes(provider)
+                ? 'Bot configurado para Meta. Asegúrate de configurar el Webhook en Facebook Developers.'
+                : (provider === 'tiktok' ? 'Bot configurado para TikTok. Asegúrate de configurar el Webhook.' : 'Bot configurado.');
+
             return res.json({
                 success: true,
                 instance_id: instanceId,
                 provider,
-                message: provider === 'meta'
-                    ? 'Bot configurado para Meta Cloud API. Configura webhook y token en backend.'
-                    : 'Bot configurado para 360Dialog. Configura webhook y credenciales en backend.'
+                message: pMsg
             });
         }
 

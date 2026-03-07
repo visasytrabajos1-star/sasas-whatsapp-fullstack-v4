@@ -23,6 +23,8 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
+      - key: SUPERADMIN_BYPASS_TOKEN
+        value: ALEX_SUPERADMIN_SECRET_TOKEN_2026
 
   - type: static
     name: alex-io-v4-frontend

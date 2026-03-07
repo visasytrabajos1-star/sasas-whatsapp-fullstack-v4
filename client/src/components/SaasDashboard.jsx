@@ -534,17 +534,16 @@ function SaasDashboard() {
                 />
               </div>
               <div>
-                <label className="block text-sm text-slate-400 mb-1">Canal WhatsApp</label>
                 <select
                   className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
                   value={newBotProvider}
                   onChange={(e) => setNewBotProvider(e.target.value)}
                 >
-                  <option value="baileys">Baileys (QR)</option>
-                  <option value="meta" disabled>Meta Cloud (Premium ⭐)</option>
-                  <option value="360dialog" disabled>360Dialog (Premium ⭐)</option>
+                  {PROVIDERS.map((p) => (
+                    <option key={p.value} value={p.value}>{p.label}</option>
+                  ))}
                 </select>
-                <p className="text-[9px] text-blue-400 mt-1 italic">El modelo Free es solo con Gemini y QR. El resto requiere Plan Premium.</p>
+                <p className="text-[9px] text-blue-400 mt-1 italic">El modelo Free es solo con Gemini y QR. Otros canales requieren Plan Premium.</p>
               </div>
               <button
                 onClick={handleCreateNew}
@@ -856,21 +855,72 @@ function SaasDashboard() {
                         </div>
                       </div>
 
-                      {configDraft.provider === 'meta' && (
-                        <div className="space-y-3 p-3 bg-red-900/10 rounded border border-red-500/30">
-                          <h4 className="text-sm font-bold text-red-400 flex items-center gap-2">
-                            <ShieldAlert size={14} /> Canal No Disponible
+                      {['meta', 'coexistence', 'facebook', 'instagram'].includes(configDraft.provider) && (
+                        <div className="space-y-3 p-4 bg-slate-900 rounded-xl border border-blue-500/30 mt-4 rounded">
+                          <h4 className="text-sm font-bold text-blue-400 flex items-center gap-2">
+                            <Smartphone size={16} /> Configuración de Canal Meta
                           </h4>
-                          <p className="text-xs text-slate-300">Este canal requiere una suscripción <strong>ALEX IO Enterprise</strong>. Pasa al plan Premium para activarlo.</p>
+                          <div>
+                            <label className="block text-xs text-slate-400 mb-1">Page ID / Phone Number ID</label>
+                            <input
+                              className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm"
+                              placeholder="Ej: 1234567890"
+                              value={configDraft.metaPhoneNumberId || ''}
+                              onChange={(e) => setConfigDraft((prev) => ({ ...prev, metaPhoneNumberId: e.target.value }))}
+                            />
+                            <p className="text-[10px] text-slate-500 mt-1">El identificador de tu página de Facebook, cuenta de Instagram o número de WhatsApp.</p>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-slate-400 mb-1">System Access Token</label>
+                            <input
+                              className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm"
+                              type="password"
+                              placeholder="EAA..."
+                              value={configDraft.metaAccessToken || ''}
+                              onChange={(e) => setConfigDraft((prev) => ({ ...prev, metaAccessToken: e.target.value }))}
+                            />
+                            <p className="text-[10px] text-slate-500 mt-1">Token generado desde Facebook Developers con permisos de mensajería.</p>
+                          </div>
+                          <div className="bg-slate-950 border border-slate-800 p-3 rounded mt-2">
+                            <p className="text-xs font-bold text-slate-300 mb-1">URL de Webhook (Para Facebook Developers)</p>
+                            <code className="text-xs text-blue-300 select-all block bg-slate-900 p-2 rounded border border-slate-800">
+                              https://sasas-whatsapp-fullstack-v4.onrender.com/api/webhooks/meta
+                            </code>
+                            <p className="text-[10px] text-slate-500 mt-2">Verify Token: <code className="text-slate-300 font-bold bg-slate-800 px-1 rounded">alex_io_secure_webhook</code></p>
+                          </div>
                         </div>
                       )}
 
-                      {configDraft.provider === '360dialog' && (
-                        <div className="space-y-3 p-3 bg-red-900/10 rounded border border-red-500/30">
-                          <h4 className="text-sm font-bold text-red-400 flex items-center gap-2">
-                            <ShieldAlert size={14} /> Canal No Disponible
+                      {configDraft.provider === 'tiktok' && (
+                        <div className="space-y-3 p-4 bg-slate-900 rounded-xl border border-pink-500/30 mt-4 rounded">
+                          <h4 className="text-sm font-bold text-pink-400 flex items-center gap-2">
+                            <Smartphone size={16} /> Configuración de TikTok
                           </h4>
-                          <p className="text-xs text-slate-300">Este canal requiere una suscripción <strong>ALEX IO Enterprise</strong>. Pasa al plan Premium para activarlo.</p>
+                          <div>
+                            <label className="block text-xs text-slate-400 mb-1">TikTok App Key / Account ID</label>
+                            <input
+                              className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm"
+                              placeholder="awxyz123..."
+                              value={configDraft.metaPhoneNumberId || ''} // Reutilizamos campo
+                              onChange={(e) => setConfigDraft((prev) => ({ ...prev, metaPhoneNumberId: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-slate-400 mb-1">Access Token</label>
+                            <input
+                              className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm"
+                              type="password"
+                              placeholder="tt_..."
+                              value={configDraft.metaAccessToken || ''} // Reutilizamos campo
+                              onChange={(e) => setConfigDraft((prev) => ({ ...prev, metaAccessToken: e.target.value }))}
+                            />
+                          </div>
+                          <div className="bg-slate-950 border border-slate-800 p-3 rounded mt-2">
+                            <p className="text-xs font-bold text-slate-300 mb-1">URL de Webhook (Para TikTok Developers)</p>
+                            <code className="text-xs text-pink-300 select-all block bg-slate-900 p-2 rounded border border-slate-800">
+                              https://sasas-whatsapp-fullstack-v4.onrender.com/api/webhooks/tiktok
+                            </code>
+                          </div>
                         </div>
                       )}
 

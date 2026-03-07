@@ -191,12 +191,16 @@ if (frontendPath) {
 app.get('/api/status', (req, res) => {
     res.json({
         status: 'online',
-        version: '2.0.4.16',
+        version: '2.0.4.17',
         platform: 'ALEX IO SAAS',
-        features: ['V6 Protocol Hardening', 'V8 Multi-Tenancy', 'TTS Voice'],
+        features: ['V6 Protocol Hardening', 'V8 Multi-Tenancy', 'TTS Voice', 'Omnichannel Connectors'],
         users: 'Optimized for scale'
     });
 });
+
+// Webhooks (Public - Unauthenticated logic handles signature validation)
+const webhooksRouter = require('./routes/webhooks');
+app.use('/api/webhooks', webhooksRouter);
 
 // WhatsApp Routes (Protected & Rate Limited by Tenant)
 const { router: whatsappSaas, restoreSessions } = require('./services/whatsappSaas');
