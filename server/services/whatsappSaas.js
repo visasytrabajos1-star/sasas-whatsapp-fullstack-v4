@@ -206,20 +206,21 @@ const hydrateSessionStatus = async () => {
 
             // Also hydrate clientConfigs so tenant filtering works in /status
             if (row.tenant_id) {
+                clientConfigs.set(row.instance_id, {
                     ...(clientConfigs.get(row.instance_id) || {}),
                     ...(row.value ? JSON.parse(row.value) : {}), // Rehydrate full config from JSON
-    tenantId: row.tenant_id,
-        ownerEmail: row.owner_email,
-            companyName: row.company_name,
-                provider: 'baileys'
+                    tenantId: row.tenant_id,
+                    ownerEmail: row.owner_email,
+                    companyName: row.company_name,
+                    provider: 'baileys'
                 });
             }
         }
 
-console.log(`✅ Session status hydrated from Supabase (${(data || []).length} records).`);
+        console.log(`✅ Session status hydrated from Supabase (${(data || []).length} records).`);
     } catch (err) {
-    console.warn('⚠️ Unexpected error hydrating session status:', err.message);
-}
+        console.warn('⚠️ Unexpected error hydrating session status:', err.message);
+    }
 };
 
 const clearSessionRuntime = (instanceId) => {
