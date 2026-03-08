@@ -1,31 +1,22 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js';
 
-// Fallback config object (empty) to avoid errors if file missing
-const config = { supabaseUrl: null, supabaseKey: "TU_CLAVE_AQUI" };
-
-// 1. Intentar usar variables de entorno (PRIORIDAD)
-// 2. Si no, intentar usar config hardcoded (DESARROLLO LOCAL)
 const cleanStr = (s) => (s || "").trim();
 
-// Hardcoded fallbacks (safe to expose — these are public Supabase credentials)
-const SUPABASE_URL_FALLBACK = 'https://ygsmooajrqldzdtcukfd.supabase.co';
-const SUPABASE_KEY_FALLBACK = 'sb_publishable_X3xx0LH-LOLJf7q5M52yVQ_JUq3AzT8';
-
-const supabaseUrl = cleanStr(import.meta.env.VITE_SUPABASE_URL) || SUPABASE_URL_FALLBACK;
-const supabaseKey = cleanStr(import.meta.env.VITE_SUPABASE_ANON_KEY) || SUPABASE_KEY_FALLBACK;
-
-// ... debug helper ...
+// Configuración de Supabase
+// Se priorizan las variables de entorno definidas en .env o en el panel de Render (VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY)
+const supabaseUrl = cleanStr(import.meta.env.VITE_SUPABASE_URL);
+const supabaseKey = cleanStr(import.meta.env.VITE_SUPABASE_ANON_KEY);
 
 let supabase = null;
 
-if (supabaseUrl && supabaseKey && supabaseKey !== "TU_CLAVE_AQUI") {
+if (supabaseUrl && supabaseKey) {
     try {
         supabase = createClient(supabaseUrl, supabaseKey);
     } catch (e) {
         console.error("Error inicializando Supabase Client:", e);
     }
 } else {
-    console.warn('⚠️ Supabase no configurado o en Modo Demo.');
+    console.warn('⚠️ Supabase no configurado. Verifica las variables de entorno VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.');
 }
 
 export { supabase };

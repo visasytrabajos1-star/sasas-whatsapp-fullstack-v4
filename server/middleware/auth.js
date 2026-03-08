@@ -1,6 +1,9 @@
 const jwt = require('jsonwebtoken');
 const { supabase, isSupabaseEnabled } = require('../services/supabaseClient');
 
+const getAdminEmails = () => (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(e => e);
+let ADMIN_EMAILS_CACHE = getAdminEmails();
+
 const getJwtSecret = () => {
     const secret = process.env.JWT_SECRET;
     if (!secret && process.env.NODE_ENV === 'production') {
@@ -52,7 +55,7 @@ const authenticateTenant = async (req, res, next) => {
             const { data: { user }, error } = await supabase.auth.getUser(token);
             if (error || !user) throw new Error('Token de Supabase inválido o expirado.');
 
-            const isAdmin = ['visasytrabajos@gmail.com', 'admin@demo.com', 'admin@alex.io'].includes(user.email.toLowerCase());
+            const isAdmin = ADMIN_EMAILS_CACHE.includes(user.email.toLowerCase()) || user.user_metadata?.role === 'SUPERADMIN';
             req.tenant = {
                 id: isAdmin ? 'tenant_superadmin' : user.id, // Use Supabase UUID as immutable tenantId
                 plan: user.user_metadata?.plan || (isAdmin ? 'ENTERPRISE' : 'PRO'),

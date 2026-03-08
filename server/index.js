@@ -101,7 +101,7 @@ const bcrypt = require('bcryptjs');
 const { getJwtSecret } = require('./middleware/auth');
 const { supabase, isSupabaseEnabled } = require('./services/supabaseClient');
 
-const ADMIN_EMAILS = ['visasytrabajos@gmail.com', 'admin@demo.com'];
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(e => e);
 
 const buildToken = (user) => {
     const email = user.email;

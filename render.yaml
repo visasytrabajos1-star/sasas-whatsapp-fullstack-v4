@@ -23,22 +23,12 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
-      - key: SUPERADMIN_BYPASS_TOKEN
-        value: ALEX_SUPERADMIN_SECRET_TOKEN_2026
-
-  - type: static
-    name: alex-io-v4-frontend
-    env: static
-    region: oregon
-    rootDir: client
-    buildCommand: npm install && npm run build
-    publishDir: build
-    envVars:
+      - key: ADMIN_EMAILS
+        value: "admin@alex.io" # Add comma-separated emails in Render dashboard
+      # Frontend Variables (Must be available during build time)
       - key: VITE_API_URL
         value: https://alex-io-v4-backend.onrender.com
       - key: VITE_SUPABASE_URL
-        value: https://ygsmooajrqldzdtcukfd.supabase.co
+        sync: false
       - key: VITE_SUPABASE_ANON_KEY
-        value: sb_publishable_X3xx0LH-LOLJf7q5M52yVQ_JUq3AzT8
-      - key: VITE_API_TIMEOUT_MS
-        value: "60000"
+        sync: false
