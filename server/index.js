@@ -79,11 +79,12 @@ const bcrypt = require('bcryptjs');
 const { getJwtSecret } = require('./middleware/auth');
 const { supabase, isSupabaseEnabled } = require('./services/supabaseClient');
 
-const ADMIN_EMAILS = ['visasytrabajos@gmail.com', 'admin@demo.com'];
+const ADMIN_EMAILS = ['visasytrabajos@gmail.com', 'admin@demo.com', 'admin@alex.io'];
 
 const buildToken = (user) => {
     const email = user.email;
-    const isAdmin = ADMIN_EMAILS.includes(email.toLowerCase().trim()) || user.user_metadata?.role === 'SUPERADMIN';
+    const userRole = user.user_metadata?.role || 'OWNER';
+    const isAdmin = ADMIN_EMAILS.includes(email?.toLowerCase().trim()) || userRole === 'SUPERADMIN';
     const tenantId = isAdmin
         ? 'tenant_superadmin'
         : user.id; // Use Supabase UUID as immutable tenantId
@@ -93,10 +94,10 @@ const buildToken = (user) => {
             tenantId,
             email,
             plan: user.user_metadata?.plan || (isAdmin ? 'ENTERPRISE' : 'PRO'),
-            role: isAdmin ? 'SUPERADMIN' : (user.user_metadata?.role || 'OWNER')
+            role: isAdmin ? 'SUPERADMIN' : userRole
         }, getJwtSecret(), { expiresIn: '7d' }),
         tenantId,
-        role: isAdmin ? 'SUPERADMIN' : (user.user_metadata?.role || 'OWNER')
+        role: isAdmin ? 'SUPERADMIN' : userRole
     };
 };
 

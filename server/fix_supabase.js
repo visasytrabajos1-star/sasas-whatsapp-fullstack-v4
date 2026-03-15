@@ -26,7 +26,7 @@ async function fixSupabase() {
             console.log('➕ Creando bucket "media"...');
             const { error: createError } = await supabase.storage.createBucket('media', {
                 public: true,
-                allowedMimeTypes: ['image/*', 'video/*', 'audio/*', 'application/pdf'],
+                // Sin restricciones para evitar errores de MIME
                 fileSizeLimit: 52428800 // 50MB
             });
             if (createError) {

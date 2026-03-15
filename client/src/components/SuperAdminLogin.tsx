@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldAlert, Lock, Mail, Loader2 } from 'lucide-react';
 
+import { supabase } from '../supabaseClient';
+
 const SuperAdminLogin = () => {
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
@@ -15,12 +17,22 @@ const SuperAdminLogin = () => {
         setError('');
 
         try {
+            // 1. Iniciar sesión en Supabase
+            const { data, error: supaError } = await supabase.auth.signInWithPassword({
+                email: email.trim().toLowerCase(),
+                password
+            });
+
+            if (supaError) throw supaError;
+            if (!data.session) throw new Error('No se pudo establecer la sesión.');
+
+            // 2. Intercambiar token por JWT del Backend
             const { getPreferredApiBase } = await import('../api.js');
             const apiBase = getPreferredApiBase();
-            const resp = await fetch(`${apiBase}/api/auth/login`, {
+            const resp = await fetch(`${apiBase}/api/auth/session-exchange`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: email.trim().toLowerCase(), password })
+                body: JSON.stringify({ access_token: data.session.access_token })
             });
 
             if (!resp.ok) {
@@ -28,14 +40,13 @@ const SuperAdminLogin = () => {
                 throw new Error(errData.error || `Error ${resp.status}`);
             }
 
-            const data = await resp.json();
-            if (data.role !== 'SUPERADMIN') {
-                throw new Error('Esta cuenta no tiene permisos de SuperAdmin.');
-            }
+            const backendData = await resp.json();
 
-            localStorage.setItem('alex_io_token', data.token);
+            // 3. Persistir sesión compatible con AuthContext
+            localStorage.setItem('alex_io_token', backendData.token);
             localStorage.setItem('demo_email', email.trim().toLowerCase());
-            localStorage.setItem('alex_io_role', data.role);
+            localStorage.setItem('alex_io_role', backendData.role);
+
             navigate('/superadmin');
             window.location.reload();
         } catch (err: any) {

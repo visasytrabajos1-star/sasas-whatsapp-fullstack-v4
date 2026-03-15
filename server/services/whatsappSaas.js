@@ -1126,7 +1126,8 @@ router.post('/knowledge/:instanceId/upload', upload.single('file'), async (req, 
 
     } catch (err) {
         console.error('❌ Error processing document upload:', err);
-        res.status(500).json({ error: 'Error procesando el archivo para RAG' });
+        const errorMsg = err.message || 'Error desconocido';
+        res.status(500).json({ error: `Error procesando el archivo: ${errorMsg}` });
     }
 });
 
@@ -1152,7 +1153,10 @@ router.post('/upload-media', upload.single('file'), async (req, res) => {
                 upsert: true
             });
 
-        if (error) throw error;
+        if (error) {
+            console.error('❌ Supabase Upload Error:', error);
+            return res.status(500).json({ error: `Error de almacenamiento: ${error.message}` });
+        }
 
         const { data: { publicUrl } } = supabase.storage
             .from('media')
