@@ -197,7 +197,10 @@ function App() {
                 }
               />
 
-              <Route path="/saas" element={<SaasDashboard />} />
+              <Route
+                path="/saas"
+                element={<Navigate to="/dashboard" replace />}
+              />
               <Route
                 path="/payment-setup"
                 element={

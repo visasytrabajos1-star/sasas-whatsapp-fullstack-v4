@@ -54,9 +54,38 @@ export default function Login() {
 
         try {
             if (isSignUp) {
-                // REGISTRO — Supabase envía email de confirmación automáticamente
+                const normalizedEmail = email.trim().toLowerCase();
+
+                // INTENTO 1: Registro vía backend (Auto-confirmación sin email)
+                try {
+                    const { getPreferredApiBase } = await import('../api.js');
+                    const apiBase = getPreferredApiBase();
+                    const regRes = await fetch(`${apiBase}/api/auth/register`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: normalizedEmail, password })
+                    });
+
+                    if (regRes.ok) {
+                        showMsg('✅ ¡Cuenta creada exitosamente! Ingresá tu contraseña para iniciar sesión.', 'success');
+                        setIsSignUp(false);
+                        return; // Registro completado
+                    } else {
+                        const errData = await regRes.json();
+                        if (regRes.status !== 501) {
+                            throw new Error(errData.error || 'Error al crear cuenta');
+                        }
+                        // Si es 501, continúa al INTENTO 2
+                    }
+                } catch (beErr) {
+                    if (!beErr.message.includes('requiere SUPABASE_SERVICE_ROLE_KEY')) {
+                        throw beErr;
+                    }
+                }
+
+                // INTENTO 2: Fallback a Supabase Nativo (Requiere confirmación por email)
                 const { error } = await supabase.auth.signUp({
-                    email,
+                    email: normalizedEmail,
                     password,
                     options: {
                         emailRedirectTo: window.location.origin + '/#/login'

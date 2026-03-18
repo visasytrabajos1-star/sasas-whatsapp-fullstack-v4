@@ -171,8 +171,39 @@ app.post('/api/auth/session-exchange', sessionExchangeLimiter, async (req, res) 
     }
 });
 
-// Legacy login/register removed to enforce Supabase Auth.
-// Use Supabase Client SDK in frontend to login/signup.
+// POST /api/auth/register
+// Backend registration with auto-confirm to bypass Supabase email limits
+app.post('/api/auth/register', async (req, res) => {
+    const { email, password, role } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
+
+    const { supabaseAdmin } = require('./services/supabaseClient');
+    if (!supabaseAdmin) {
+        return res.status(501).json({ error: 'El registro automático requiere SUPABASE_SERVICE_ROLE_KEY en el servidor. Usa registro normal.' });
+    }
+
+    try {
+        const { data, error } = await supabaseAdmin.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: true,
+            user_metadata: { role: role || 'OWNER', plan: 'PRO' }
+        });
+
+        if (error) {
+            if (error.message.includes('already been registered')) {
+                return res.status(409).json({ error: 'El usuario ya existe. Usa Iniciar Sesión.' });
+            }
+            throw error;
+        }
+        res.json({ success: true, message: 'Usuario creado y confirmado automáticamente.', user: data.user });
+    } catch (err) {
+        console.error('Registration error:', err.message);
+        res.status(500).json({ error: 'Error al registrar usuario: ' + err.message });
+    }
+});
+
+// Legacy login removed to enforce Supabase Auth.
 app.post('/api/auth/login', (req, res) => {
     res.status(410).json({
         error: 'Este endpoint está obsoletos (AUTH_DEPRECATED). Use Supabase Auth + /api/auth/session-exchange.',
@@ -185,8 +216,16 @@ const path = require('path');
 const clientBuildPath = path.join(__dirname, '..', 'client', 'build');
 const clientDistPath = path.join(__dirname, '..', 'client', 'dist');
 const fs = require('fs');
-const frontendPath = fs.existsSync(clientBuildPath) ? clientBuildPath :
-    fs.existsSync(clientDistPath) ? clientDistPath : null;
+const getFrontendPath = () => {
+    const candidates = [clientBuildPath, clientDistPath];
+    for (const candidate of candidates) {
+        if (fs.existsSync(path.join(candidate, 'index.html'))) {
+            return candidate;
+        }
+    }
+    return null;
+};
+const frontendPath = getFrontendPath();
 
 if (frontendPath) {
     // index.html: never cache (ensures fresh version after deploy)
@@ -207,6 +246,11 @@ if (frontendPath) {
             }
         }
     }));
+
+    // If an asset hash is stale/missing, return 404 (never fallback to index for JS/CSS assets)
+    app.get(/^\/assets\/.*$/, (req, res) => {
+        res.status(404).type('text/plain').send('Asset not found');
+    });
 
     logger.info(`📦 Frontend served from ${frontendPath} (cache-hardened)`);
 }
@@ -249,13 +293,27 @@ app.get('/api/health', (req, res) => {
 
 // --- SPA CATCH-ALL (must be AFTER all API routes) ---
 if (frontendPath) {
-    app.get('*', (req, res) => {
+    app.get('*', (req, res, next) => {
+        if (req.path.startsWith('/assets/')) {
+            return res.status(404).type('text/plain').send('Asset not found');
+        }
         res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.set('Pragma', 'no-cache');
         res.set('Expires', '0');
-        res.sendFile(path.join(frontendPath, 'index.html'));
+        return res.sendFile(path.join(frontendPath, 'index.html'), (err) => {
+            if (err) return next(err);
+        });
     });
 }
+
+
+app.use((err, req, res, next) => {
+    console.error('❌ Express unhandled error:', err.message, 'path:', req.path);
+    if (req.path.startsWith('/assets/')) {
+        return res.status(404).type('text/plain').send('Asset not found');
+    }
+    return res.status(500).json({ error: 'Internal server error' });
+});
 
 // --- START SERVER ---
 app.listen(PORT, () => {

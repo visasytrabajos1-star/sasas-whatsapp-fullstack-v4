@@ -16,9 +16,20 @@ if (supabaseUrl && supabaseKey) {
         auth: { autoRefreshToken: false, persistSession: false }
     });
 }
+const serviceKey = (!isDummyKey(process.env.SUPABASE_SERVICE_ROLE_KEY) ? process.env.SUPABASE_SERVICE_ROLE_KEY : null)
+    || (!isDummyKey(process.env.SUPABASE_SERVICE_KEY) ? process.env.SUPABASE_SERVICE_KEY : null);
+
+let supabaseAdmin = null;
+
+if (supabaseUrl && serviceKey) {
+    supabaseAdmin = createClient(supabaseUrl, serviceKey, {
+        auth: { autoRefreshToken: false, persistSession: false }
+    });
+}
 
 module.exports = {
     supabase,
+    supabaseAdmin,
     isSupabaseEnabled: Boolean(supabase)
 };
 
