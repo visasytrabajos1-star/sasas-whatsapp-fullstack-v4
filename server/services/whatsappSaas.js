@@ -202,7 +202,9 @@ const hydrateSessionStatus = async () => {
                 qr_code: row.qr_code,
                 updatedAt: row.updated_at,
                 companyName: row.company_name,
-                provider: null
+                provider: null,
+                tenantId: row.tenant_id,
+                ownerEmail: row.owner_email
             });
 
             // Also hydrate clientConfigs so tenant filtering works in /status
@@ -265,9 +267,12 @@ hydrateSessionStatus().catch((error) => {
 
 const isOwnerTenant = (req, instanceId) => {
     const tenantId = req.tenant?.id;
-    const info = sessionStatus.get(instanceId);
-    if (!tenantId || !info) return false;
-    return info.tenantId === tenantId;
+    const configTenant = clientConfigs.get(instanceId)?.tenantId;
+    const statusTenant = sessionStatus.get(instanceId)?.tenantId;
+    const ownerId = configTenant || statusTenant;
+
+    if (!tenantId || !ownerId) return false;
+    return ownerId === tenantId;
 };
 
 const forbidIfNotOwner = (req, res, instanceId) => {
