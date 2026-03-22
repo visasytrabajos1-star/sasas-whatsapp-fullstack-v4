@@ -389,7 +389,7 @@ async function handleQRMessage(sock, msg, instanceId) {
                     .eq('instance_id', instanceId)
                     .eq('remote_jid', remoteJid)
                     .order('created_at', { ascending: false })
-                    .limit(40);
+                    .limit(80);
 
                 if (dbHistory && dbHistory.length > 0) {
                     history = dbHistory.reverse().map(row => ({
@@ -407,7 +407,7 @@ async function handleQRMessage(sock, msg, instanceId) {
 
         history.push({ role: 'user', content: processedText });
         // Although we limit to 10 DB, memory fallback can keep up to 20
-        if (history.length > 50) history = history.slice(-50);
+        if (history.length > 100) history = history.slice(-100);
 
         // --- Check if Human manually paused this lead ---
         if (pausedLeads.get(memKey)) {

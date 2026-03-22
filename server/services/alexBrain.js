@@ -125,7 +125,7 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
                 const url = `https://generativelanguage.googleapis.com/${g.v}/models/${g.m}:generateContent?key=${GEMINI_KEY}`;
 
                 const contents = [];
-                (history || []).slice(-20).forEach(h => {
+                (history || []).slice(-40).forEach(h => {
                     contents.push({ role: h.role === 'assistant' ? 'model' : 'user', parts: [{ text: h.content || h.text || "" }] });
                 });
                 contents.push({ role: 'user', parts: [{ text: normalizedUserMsg }] });
@@ -175,7 +175,7 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
                 model: 'deepseek-chat',
                 messages: [
                     { role: 'system', content: systemPrompt },
-                    ...(history || []).slice(-20).map(h => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content || h.text })),
+                    ...(history || []).slice(-40).map(h => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content || h.text })),
                     { role: 'user', content: normalizedUserMsg }
                 ]
             }, { headers: { Authorization: `Bearer ${DEEPSEEK_KEY}` }, timeout: 7000 });
@@ -203,7 +203,7 @@ async function generateResponse({ message, history = [], botConfig = {}, isAudio
                 model: 'gpt-4o-mini',
                 messages: [
                     { role: 'system', content: systemPrompt },
-                    ...(history || []).slice(-20).map(h => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content || h.text })),
+                    ...(history || []).slice(-40).map(h => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content || h.text })),
                     { role: 'user', content: normalizedUserMsg }
                 ]
             }, { headers: { Authorization: `Bearer ${OPENAI_KEY}` }, timeout: 8000 });

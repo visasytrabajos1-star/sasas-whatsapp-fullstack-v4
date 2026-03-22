@@ -37,7 +37,7 @@ async function generateResponse({ message, history = [], botConfig = {} }) {
         try {
             const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
             const chat = model.startChat({
-                history: history.slice(-20).map(h => ({ role: h.role === 'assistant' ? 'model' : 'user', parts: [{ text: h.content || h.text }] })),
+                history: history.slice(-40).map(h => ({ role: h.role === 'assistant' ? 'model' : 'user', parts: [{ text: h.content || h.text }] })),
                 generationConfig: { maxOutputTokens: 500, temperature: 0.7 }
             });
             const result = await chat.sendMessage([{ text: `${systemPrompt}\n\nUsuario: ${message}` }]);
@@ -53,7 +53,7 @@ async function generateResponse({ message, history = [], botConfig = {} }) {
         try {
             const dsRes = await axios.post('https://api.deepseek.com/v1/chat/completions', {
                 model: 'deepseek-chat',
-                messages: [{ role: 'system', content: systemPrompt }, ...history.slice(-20), { role: 'user', content: message }]
+                messages: [{ role: 'system', content: systemPrompt }, ...history.slice(-40), { role: 'user', content: message }]
             }, { headers: { Authorization: `Bearer ${DEEPSEEK_KEY}` }, timeout: 10000 });
             responseText = dsRes.data.choices[0].message.content;
             usedModel = 'deepseek-chat';
@@ -67,7 +67,7 @@ async function generateResponse({ message, history = [], botConfig = {} }) {
         try {
             const gptRes = await openai.chat.completions.create({
                 model: 'gpt-4o-mini',
-                messages: [{ role: 'system', content: systemPrompt }, ...history.slice(-20), { role: 'user', content: message }]
+                messages: [{ role: 'system', content: systemPrompt }, ...history.slice(-40), { role: 'user', content: message }]
             });
             responseText = gptRes.choices[0].message.content;
             usedModel = 'gpt-4o-mini';
